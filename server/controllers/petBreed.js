@@ -25,7 +25,7 @@ const getAllPetBreed = asyncHandler(async (req, res) => {
     const petBreed = await PetBreed.find();
     return res.status(200).json({
       success: true,
-      breeds: petBreed,
+      petBreed,
     });
   } catch (error) {
     throw new Error(error);

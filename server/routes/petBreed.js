@@ -2,8 +2,24 @@ const router = require("express").Router();
 const petBreedControls = require("../controllers/petBreed");
 const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
 
-router.post("/addNewBreed", petBreedControls.createNewBreed);
-router.get("/getAllBreed", petBreedControls.getAllPetBreed);
-router.put("/changeBreed/:bid", petBreedControls.changePetBreed);
-router.delete("/:bid", petBreedControls.deletePetBreed);
+router.post(
+  "/addNewBreed",
+  [verifyAccessToken, isAdmin],
+  petBreedControls.createNewBreed
+);
+router.get(
+  "/getAllBreed",
+  [verifyAccessToken, isAdmin],
+  petBreedControls.getAllPetBreed
+);
+router.put(
+  "/changeBreed/:bid",
+  [verifyAccessToken, isAdmin],
+  petBreedControls.changePetBreed
+);
+router.delete(
+  "/:bid",
+  [verifyAccessToken, isAdmin],
+  petBreedControls.deletePetBreed
+);
 module.exports = router;
