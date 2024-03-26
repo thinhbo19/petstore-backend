@@ -5,7 +5,7 @@ var PetSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  species: { type: Schema.Types.ObjectId, ref: "PetSpecies", required: true },
+  breed: { type: mongoose.Types.ObjectId, ref: "PetBreed", required: true },
   age: { type: Number },
   gender: { type: String, enum: ["Male", "Female", "Unknown"] },
   description: { type: String },
