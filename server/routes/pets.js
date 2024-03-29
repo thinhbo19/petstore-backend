@@ -1,10 +1,12 @@
+const uploadCloud = require("../middlewares/uploadimg");
 const router = require("express").Router();
 const petsControlls = require("../controllers/pets");
 const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
 
 router.post(
   "/addPets",
-  [verifyAccessToken, isAdmin],
+  // [verifyAccessToken, isAdmin],
+  uploadCloud.array("imgPet"),
   petsControlls.createNewPets
 );
 router.get("/allPet", [verifyAccessToken, isAdmin], petsControlls.getAllPets);

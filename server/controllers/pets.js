@@ -6,6 +6,7 @@ const PetBreed = require("../models/petBreed");
 const createNewPets = asyncHandler(async (req, res) => {
   try {
     const { namePet, breed, age, gender, description } = req.body;
+    const imgPet = req.files.map((file) => file.path);
     if (!mongoose.Types.ObjectId.isValid(breed)) {
       return res.status(400).json({ message: "ID invalid!!!!" });
     }
@@ -13,14 +14,21 @@ const createNewPets = asyncHandler(async (req, res) => {
     if (!existingBreed) {
       return res.status(404).json({ message: "Not found breed with Id" });
     }
-    const newPet = new Pets({ namePet, breed, age, gender, description });
+    const newPet = new Pets({
+      namePet,
+      breed,
+      age,
+      gender,
+      description,
+      imgPet,
+    });
     await newPet.save();
     return res.status(200).json({ success: true, newPet });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
-const getAllPets = asyncHandler(async (req, res) => {
+const getAllPets = asyncHandler(async (res) => {
   try {
     const pets = await Pets.find();
     return res.status(200).json({

@@ -5,6 +5,9 @@ var PetSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  imgPet: {
+    type: Array,
+  },
   breed: { type: mongoose.Types.ObjectId, ref: "PetBreed", required: true },
   age: { type: Number },
   gender: { type: String, enum: ["Male", "Female", "Unknown"] },

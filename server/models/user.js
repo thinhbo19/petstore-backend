@@ -60,6 +60,9 @@ var userSchema = new mongoose.Schema(
     passwordResetExpire: {
       type: String,
     },
+    Avartar: {
+      type: String,
+    },
   },
   {
     timestamps: true,
