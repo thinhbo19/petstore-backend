@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const uploadCloud = require("../middlewares/uploadimg");
 const UserControls = require("../controllers/user");
 const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
 
@@ -15,7 +16,12 @@ router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
 router.put("/resetpassword", UserControls.resetPassword);
 router.delete("/delete", [verifyAccessToken, isAdmin], UserControls.deleteUser);
-router.put("/update", [verifyAccessToken], UserControls.updateUserByUser);
+router.put(
+  "/update",
+  [verifyAccessToken],
+  uploadCloud.single("Avatar"),
+  UserControls.updateUserByUser
+);
 router.put(
   "/:uid",
   [verifyAccessToken, isAdmin],

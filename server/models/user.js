@@ -60,7 +60,7 @@ var userSchema = new mongoose.Schema(
     passwordResetExpire: {
       type: String,
     },
-    Avartar: {
+    Avatar: {
       type: String,
     },
   },

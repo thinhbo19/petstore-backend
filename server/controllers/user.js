@@ -192,22 +192,36 @@ const deleteUser = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+
 const updateUserByUser = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
-    if (!_id || Object.keys(req.body).length === 0)
-      throw new Error("Missing Id!!");
-    const user = await User.findByIdAndUpdate(_id, req.body, {
+    if (!_id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing user ID" });
+    }
+
+    let updateData = req.body;
+    if (req.file && req.file.path) {
+      updateData.Avatar = req.file.path;
+    }
+
+    const user = await User.findByIdAndUpdate(_id, updateData, {
       new: true,
     }).select("-password -role");
-    return res.status(200).json({
-      success: user ? true : false,
-      updateUser: user ? user : "Something went wrong!!",
-    });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, updateUser: user });
   } catch (error) {
-    throw new Error(error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
+
 const updateUserByAdmin = asyncHandler(async (req, res) => {
   try {
     const { uid } = req.params;
