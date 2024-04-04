@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-var userSchema = new mongoose.Schema({
+var PetBreedSchema = new mongoose.Schema({
   nameBreed: {
     type: String,
     required: true,
@@ -13,4 +13,4 @@ var userSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model("PetBreed", userSchema);
+module.exports = mongoose.model("PetBreed", PetBreedSchema);
