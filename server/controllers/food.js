@@ -8,11 +8,18 @@ const createFood = asyncHandler(async (req, res) => {
   try {
     const { nameFood, species, brand, flavor, price, quantity } = req.body;
     if (!mongoose.Types.ObjectId.isValid(species)) {
-      return res.status(400).json({ message: "ID invalid!!!!" });
+      return res.status(400).json({ message: "ID Species invalid!!!!" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(brand)) {
+      return res.status(400).json({ message: "ID Brand invalid!!!!" });
     }
     const existingSpecies = await PetSpecies.findById(species);
     if (!existingSpecies) {
       return res.status(404).json({ message: "Not found species with Id" });
+    }
+    const existingBrand = await PetSpecies.findById(brand);
+    if (!existingBrand) {
+      return res.status(404).json({ message: "Not found brand with Id" });
     }
     const newFood = new PetFood({
       nameFood,
