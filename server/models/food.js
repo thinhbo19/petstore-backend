@@ -11,9 +11,9 @@ var FoodSchema = new mongoose.Schema({
     required: true,
   },
   brand: {
-    type: String,
+    type: mongoose.Types.ObjectId,
+    ref: "Brand",
     required: true,
-    unique: true,
   },
   flavor: {
     type: String,

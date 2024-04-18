@@ -1,5 +1,6 @@
 const PetFood = require("../models/food");
 const PetSpecies = require("../models/PetSpecies");
+const Brand = require("../models/brand");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 

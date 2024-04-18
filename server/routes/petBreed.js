@@ -4,7 +4,7 @@ const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
 
 router.post(
   "/addNewBreed",
-  [verifyAccessToken, isAdmin],
+  //[verifyAccessToken, isAdmin],
   petBreedControls.createNewBreed
 );
 router.get(
@@ -14,7 +14,7 @@ router.get(
 );
 router.put(
   "/changeBreed/:bid",
-  [verifyAccessToken, isAdmin],
+  // [verifyAccessToken, isAdmin],
   petBreedControls.changePetBreed
 );
 router.delete(

@@ -10,6 +10,11 @@ var ToySchema = new mongoose.Schema({
     ref: "PetSpecies",
     required: true,
   },
+  brand: {
+    type: mongoose.Types.ObjectId,
+    ref: "Brand",
+    required: true,
+  },
   type: {
     type: String,
     required: true,
