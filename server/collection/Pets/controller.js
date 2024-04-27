@@ -1,42 +1,47 @@
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
-const Pets = require("../models/pets");
-const PetBreed = require("../models/petBreed");
+const Pets = require("./model");
+const PetBreed = require("../PetBreed/model");
 
 const createNewPets = asyncHandler(async (req, res) => {
   try {
-    const { namePet, breed, age, gender, description } = req.body;
+    const { namePet, breed, age, gender, description, price } = req.body;
     const imgPet = req.files.map((file) => file.path);
     if (!mongoose.Types.ObjectId.isValid(breed)) {
-      return res.status(400).json({ message: "ID invalid!!!!" });
+      return res.status(400).json({ message: "Invalid breed ID" });
     }
     const existingBreed = await PetBreed.findById(breed);
     if (!existingBreed) {
-      return res.status(404).json({ message: "Not found breed with Id" });
+      return res
+        .status(404)
+        .json({ message: "Breed not found with the provided ID" });
     }
     const newPet = new Pets({
       namePet,
-      breed,
+      petBreed: {
+        breedID: breed,
+        nameBreed: existingBreed.nameBreed,
+        nameSpecies: existingBreed.petSpecies.nameSpecies,
+      },
       age,
       gender,
       description,
       imgPet,
+      price,
     });
     await newPet.save();
-    return res.status(200).json({ success: true, newPet });
+    return res.status(201).json({ success: true, newPet });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
-const getAllPets = asyncHandler(async (res) => {
+
+const getAllPets = asyncHandler(async (req, res) => {
   try {
-    const pets = await Pets.find();
-    return res.status(200).json({
-      success: true,
-      pets,
-    });
+    const allPets = await Pets.find();
+    return res.status(200).json({ success: true, pets: allPets });
   } catch (error) {
-    throw new Error(error);
+    return res.status(500).json({ success: false, message: "Lỗi server." });
   }
 });
 const deletePet = asyncHandler(async (req, res) => {
@@ -55,10 +60,10 @@ const deletePet = asyncHandler(async (req, res) => {
 const changePets = asyncHandler(async (req, res) => {
   try {
     const { pid } = req.params;
-    const { namePet, age, gender, description } = req.body;
+    const { namePet, age, gender, description, price } = req.body;
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
-      { namePet, age, gender, description },
+      { namePet, age, gender, description, price },
       { new: true }
     );
     if (!updatePets) {

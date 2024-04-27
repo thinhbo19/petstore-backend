@@ -1,7 +1,7 @@
 const router = require("express").Router();
-const uploadCloud = require("../middlewares/uploadimg");
-const UserControls = require("../controllers/user");
-const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
+const uploadCloud = require("../../middlewares/uploadimg");
+const UserControls = require("./controller");
+const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 
 router.post("/register", UserControls.register);
 router.post("/login", UserControls.login);

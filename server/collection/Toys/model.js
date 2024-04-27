@@ -5,15 +5,9 @@ var ToySchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  species: {
-    type: mongoose.Types.ObjectId,
-    ref: "PetSpecies",
-    required: true,
-  },
   brand: {
-    type: mongoose.Types.ObjectId,
-    ref: "Brand",
-    required: true,
+    brandID: { type: mongoose.Types.ObjectId, ref: "Brand", required: true },
+    brandName: String,
   },
   type: {
     type: String,

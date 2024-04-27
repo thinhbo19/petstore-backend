@@ -6,10 +6,13 @@ var PetBreedSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-  species: {
-    type: mongoose.Types.ObjectId,
-    ref: "PetSpecies",
-    required: true,
+  petSpecies: {
+    speciesID: {
+      type: mongoose.Types.ObjectId,
+      ref: "PetSpecies",
+      required: true,
+    },
+    nameSpecies: String,
   },
 });
 

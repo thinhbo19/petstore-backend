@@ -1,4 +1,4 @@
-const Brand = require("../models/brand");
+const Brand = require("./model");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 

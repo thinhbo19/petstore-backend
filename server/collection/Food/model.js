@@ -5,15 +5,17 @@ var FoodSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  species: {
-    type: mongoose.Types.ObjectId,
-    ref: "PetSpecies",
-    required: true,
+  petSpecies: {
+    speciesID: {
+      type: mongoose.Types.ObjectId,
+      ref: "PetSpecies",
+      required: true,
+    },
+    nameSpecies: String,
   },
   brand: {
-    type: mongoose.Types.ObjectId,
-    ref: "Brand",
-    required: true,
+    brandID: { type: mongoose.Types.ObjectId, ref: "Brand", required: true },
+    brandName: String,
   },
   flavor: {
     type: String,

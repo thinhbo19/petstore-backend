@@ -1,7 +1,7 @@
-const uploadCloud = require("../middlewares/uploadimg");
+const uploadCloud = require("../../middlewares/uploadimg");
 const router = require("express").Router();
-const petsControlls = require("../controllers/pets");
-const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
+const petsControlls = require("./controller");
+const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 
 router.post(
   "/addPets",
@@ -9,7 +9,7 @@ router.post(
   uploadCloud.array("imgPet"),
   petsControlls.createNewPets
 );
-router.get("/allPet", [verifyAccessToken, isAdmin], petsControlls.getAllPets);
+router.get("/allPets", [verifyAccessToken, isAdmin], petsControlls.getAllPets);
 router.delete("/:pid", [verifyAccessToken, isAdmin], petsControlls.deletePet);
 router.put("/:pid", [verifyAccessToken, isAdmin], petsControlls.changePets);
 router.get("/current/:pid", petsControlls.getCurrentPets);

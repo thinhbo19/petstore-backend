@@ -1,6 +1,6 @@
 const router = require("express").Router();
-const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
-const BrandControls = require("../controllers/brand");
+const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const BrandControls = require("./controller");
 
 router.post(
   "/addBrand",

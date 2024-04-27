@@ -1,4 +1,4 @@
-const PetSpecies = require("../models/PetSpecies");
+const PetSpecies = require("./model");
 const asyncHandler = require("express-async-handler");
 
 const createNewPetSpecies = asyncHandler(async (req, res) => {

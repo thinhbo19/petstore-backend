@@ -1,30 +1,30 @@
-const PetFood = require("../models/food");
-const PetSpecies = require("../models/PetSpecies");
-const Brand = require("../models/brand");
+const PetFood = require("./model");
+const PetSpecies = require("../PetSpecies/model");
+const Brand = require("../Brand/model");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 
 const createFood = asyncHandler(async (req, res) => {
   try {
-    const { nameFood, species, brand, flavor, price, quantity } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(species)) {
+    const { nameFood, speciesID, brandID, flavor, price, quantity } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(speciesID)) {
       return res.status(400).json({ message: "ID Species invalid!!!!" });
     }
-    if (!mongoose.Types.ObjectId.isValid(brand)) {
+    if (!mongoose.Types.ObjectId.isValid(brandID)) {
       return res.status(400).json({ message: "ID Brand invalid!!!!" });
     }
-    const existingSpecies = await PetSpecies.findById(species);
+    const existingSpecies = await PetSpecies.findById(speciesID);
     if (!existingSpecies) {
       return res.status(404).json({ message: "Not found species with Id" });
     }
-    const existingBrand = await PetSpecies.findById(brand);
+    const existingBrand = await Brand.findById(brandID);
     if (!existingBrand) {
       return res.status(404).json({ message: "Not found brand with Id" });
     }
     const newFood = new PetFood({
       nameFood,
-      species,
-      brand,
+      petSpecies: { speciesID, nameSpecies: existingSpecies.nameSpecies },
+      brand: { brandID, brandName: existingBrand.nameBrand },
       flavor,
       price,
       quantity,

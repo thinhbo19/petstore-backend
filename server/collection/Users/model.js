@@ -29,19 +29,31 @@ var userSchema = new mongoose.Schema(
       type: String,
       default: "User",
     },
-    cart: {
-      type: Array,
-      default: [],
-    },
-    address: [{ type: mongoose.Types.ObjectId, ref: "Address" }],
-    favorites: [
+    // cart: {
+    //   type: Array,
+    //   default: [],
+    // },
+    Address: [
+      {
+        type: String,
+      },
+    ],
+    favoritePets: [
       {
         type: mongoose.Types.ObjectId,
         ref: "Pets",
       },
+    ],
+    favoriteFood: [
       {
         type: mongoose.Types.ObjectId,
-        ref: "Product",
+        ref: "Food",
+      },
+    ],
+    favoriteToys: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "Toys",
       },
     ],
     isBlocked: {

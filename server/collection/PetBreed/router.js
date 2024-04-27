@@ -1,6 +1,6 @@
 const router = require("express").Router();
-const petBreedControls = require("../controllers/petBreed");
-const { verifyAccessToken, isAdmin } = require("../middlewares/verifyToken");
+const petBreedControls = require("./controller");
+const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 
 router.post(
   "/addNewBreed",

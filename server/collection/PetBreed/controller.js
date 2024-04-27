@@ -1,21 +1,26 @@
 const { default: mongoose } = require("mongoose");
-const PetBreed = require("../models/petBreed");
+const PetBreed = require("./model");
 const asyncHandler = require("express-async-handler");
-const PetSpecies = require("../models/PetSpecies");
+const PetSpecies = require("../PetSpecies/model");
 
 const createNewBreed = asyncHandler(async (req, res) => {
+  const { nameBreed, speciesID } = req.body;
+
   try {
-    const { nameBreed, species } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(species)) {
-      return res.status(400).json({ message: "ID invalid!!!!" });
+    if (!mongoose.Types.ObjectId.isValid(speciesID)) {
+      return res.status(400).json({ message: "Invalid species ID" });
     }
-    const existingSpecies = await PetSpecies.findById(species);
+    const existingSpecies = await PetSpecies.findById(speciesID);
     if (!existingSpecies) {
-      return res.status(404).json({ message: "Not found species with Id" });
+      return res.status(404).json({ message: "Species not found" });
     }
-    const newPetBreed = new PetBreed({ nameBreed, species });
+    const newPetBreed = new PetBreed({
+      nameBreed,
+      petSpecies: { speciesID, nameSpecies: existingSpecies.nameSpecies },
+    });
     await newPetBreed.save();
-    return res.status(200).json({ success: true, newPetBreed });
+
+    return res.status(201).json({ success: true, newPetBreed });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -31,6 +36,7 @@ const getAllPetBreed = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+
 const changePetBreed = asyncHandler(async (req, res) => {
   try {
     const { bid } = req.params;
