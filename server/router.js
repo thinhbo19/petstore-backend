@@ -2,9 +2,9 @@ const userRouter = require("./collection/Users/router");
 const petsRouter = require("./collection/Pets/router");
 const petSpeciesRouter = require("./collection/PetSpecies/router");
 const petBreedRouter = require("./collection/PetBreed/router");
-const foodRouter = require("./collection/Food/router");
-const toyRouter = require("./collection/Toys/router");
+const cateRouter = require("./collection/Category/router");
 const brandRouter = require("./collection/Brand/router");
+const productRouter = require("./collection/Product/router");
 const { notFound, errHandle } = require("./middlewares/errHandler");
 
 const initRouter = (app) => {
@@ -12,9 +12,9 @@ const initRouter = (app) => {
   app.use("/api/pets", petsRouter);
   app.use("/api/petSpecies", petSpeciesRouter);
   app.use("/api/petBreed", petBreedRouter);
-  app.use("/api/petFood", foodRouter);
-  app.use("/api/petToys", toyRouter);
+  app.use("/api/cate", cateRouter);
   app.use("/api/brand", brandRouter);
+  app.use("/api/product", productRouter);
 
   app.use(notFound);
   app.use(errHandle);

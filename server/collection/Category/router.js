@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
-const FoodControls = require("./controller");
+const CateControll = require("./controller");
 
 router.post(
-  "/addFood",
+  "/addCate",
   //   [verifyAccessToken, isAdmin],
-  FoodControls.createFood
+  CateControll.createCategory
 );
 
 module.exports = router;

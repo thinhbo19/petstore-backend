@@ -14,15 +14,15 @@ router.get(
 router.get("/current", verifyAccessToken, UserControls.getOneUser);
 router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
-router.put("/resetpassword", UserControls.resetPassword);
+router.patch("/resetpassword", UserControls.resetPassword);
 router.delete("/delete", [verifyAccessToken, isAdmin], UserControls.deleteUser);
-router.put(
+router.patch(
   "/update",
   [verifyAccessToken],
   uploadCloud.single("Avatar"),
   UserControls.updateUserByUser
 );
-router.put(
+router.patch(
   "/:uid",
   [verifyAccessToken, isAdmin],
   UserControls.updateUserByAdmin
