@@ -6,6 +6,7 @@ var PetBreedSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  imgBreed: { type: Array },
   petSpecies: {
     speciesID: {
       type: mongoose.Types.ObjectId,

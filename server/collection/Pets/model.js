@@ -17,6 +17,9 @@ var PetSchema = new mongoose.Schema({
   gender: { type: String, enum: ["Male", "Female", "Castrated"] },
   description: { type: String },
   price: { type: Number },
+  deworming: { type: Number },
+  vaccination: { type: Number },
+  characteristic: { type: String },
   sold: {
     type: Boolean,
     default: false,

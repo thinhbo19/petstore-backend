@@ -5,7 +5,7 @@ const PetSpecies = require("../PetSpecies/model");
 
 const createNewBreed = asyncHandler(async (req, res) => {
   const { nameBreed, speciesID } = req.body;
-
+  const imgBreed = req.files.map((file) => file.path);
   try {
     if (!mongoose.Types.ObjectId.isValid(speciesID)) {
       return res.status(400).json({ message: "Invalid species ID" });
@@ -14,8 +14,13 @@ const createNewBreed = asyncHandler(async (req, res) => {
     if (!existingSpecies) {
       return res.status(404).json({ message: "Species not found" });
     }
+    const existingBreed = await PetBreed.findOne({ nameBreed });
+    if (existingBreed) {
+      return res.status(400).json({ message: "Breed name already exists" });
+    }
     const newPetBreed = new PetBreed({
       nameBreed,
+      imgBreed,
       petSpecies: { speciesID, nameSpecies: existingSpecies.nameSpecies },
     });
     await newPetBreed.save();
@@ -25,6 +30,7 @@ const createNewBreed = asyncHandler(async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
+
 const getAllPetBreed = asyncHandler(async (req, res) => {
   try {
     const petBreed = await PetBreed.find();

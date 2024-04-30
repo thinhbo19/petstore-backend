@@ -5,7 +5,17 @@ const PetBreed = require("../PetBreed/model");
 
 const createNewPets = asyncHandler(async (req, res) => {
   try {
-    const { namePet, breed, age, gender, description, price } = req.body;
+    const {
+      namePet,
+      breed,
+      age,
+      gender,
+      description,
+      price,
+      deworming,
+      vaccination,
+      characteristic,
+    } = req.body;
     const imgPet = req.files.map((file) => file.path);
     if (!mongoose.Types.ObjectId.isValid(breed)) {
       return res.status(400).json({ message: "Invalid breed ID" });
@@ -28,6 +38,9 @@ const createNewPets = asyncHandler(async (req, res) => {
       description,
       imgPet,
       price,
+      deworming,
+      vaccination,
+      characteristic,
     });
     await newPet.save();
     return res.status(201).json({ success: true, newPet });
@@ -60,10 +73,28 @@ const deletePet = asyncHandler(async (req, res) => {
 const changePets = asyncHandler(async (req, res) => {
   try {
     const { pid } = req.params;
-    const { namePet, age, gender, description, price } = req.body;
+    const {
+      namePet,
+      age,
+      gender,
+      description,
+      price,
+      deworming,
+      vaccination,
+      characteristic,
+    } = req.body;
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
-      { namePet, age, gender, description, price },
+      {
+        namePet,
+        age,
+        gender,
+        description,
+        price,
+        deworming,
+        vaccination,
+        characteristic,
+      },
       { new: true }
     );
     if (!updatePets) {

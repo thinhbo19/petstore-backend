@@ -9,9 +9,17 @@ router.post(
   uploadCloud.array("imgPet"),
   petsControlls.createNewPets
 );
-router.get("/allPets", [verifyAccessToken, isAdmin], petsControlls.getAllPets);
+router.get("/allPets", petsControlls.getAllPets);
 router.delete("/:pid", [verifyAccessToken, isAdmin], petsControlls.deletePet);
-router.put("/:pid", [verifyAccessToken, isAdmin], petsControlls.changePets);
-router.get("/current/:pid", petsControlls.getCurrentPets);
+router.put(
+  "/:pid",
+  // [verifyAccessToken, isAdmin],
+  petsControlls.changePets
+);
+router.get(
+  "/current/:pid",
+  // [verifyAccessToken],
+  petsControlls.getCurrentPets
+);
 
 module.exports = router;

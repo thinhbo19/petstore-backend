@@ -9,7 +9,7 @@ const app = express();
 app.use(
   cors({
     origin: process.env.URL_CLIENT,
-    methods: ["POST", "PUT", "GET", "DELETE"],
+    methods: ["POST", "PUT", "GET", "DELETE", "PATCH"],
   })
 );
 app.use(cookieParser());

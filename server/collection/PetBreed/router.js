@@ -1,9 +1,11 @@
 const router = require("express").Router();
 const petBreedControls = require("./controller");
 const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post(
   "/addNewBreed",
+  uploadCloud.array("imgBreed"),
   //[verifyAccessToken, isAdmin],
   petBreedControls.createNewBreed
 );
@@ -12,7 +14,7 @@ router.get(
   [verifyAccessToken, isAdmin],
   petBreedControls.getAllPetBreed
 );
-router.put(
+router.patch(
   "/changeBreed/:bid",
   // [verifyAccessToken, isAdmin],
   petBreedControls.changePetBreed
