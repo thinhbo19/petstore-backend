@@ -57,55 +57,65 @@ const register = asyncHandler(async (req, res) => {
 const login = asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email) {
       return res.status(400).json({
         success: false,
         message: "Missing Email",
       });
     }
+
     if (!password) {
       return res.status(400).json({
         success: false,
         message: "Missing Password",
       });
     }
-    const response = await User.findOne({ email });
-    if (response) {
-      if (await response.isCorrectPassword(password)) {
-        const {
-          password: userPassword,
-          refreshToken,
-          ...userData
-        } = response.toObject();
-        const accessToken = generateAccessToken(response._id, response.role);
-        const newRefreshToken = generateRefreshToken(response._id);
-        await User.findByIdAndUpdate(
-          response._id,
-          { refreshToken: newRefreshToken },
-          { new: true }
-        );
-        res.cookie("refreshToken", newRefreshToken, {
-          httpOnly: true,
-          maxAge: 7 * 24 * 60 * 60,
-        });
-        return res.status(200).json({
-          success: true,
-          userData,
-          accessToken,
-        });
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid Password",
-        });
-      }
-    } else {
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
       return res.status(400).json({
         success: false,
         message: "User not found",
       });
     }
+
+    const isPasswordCorrect = await user.isCorrectPassword(password);
+
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Password",
+      });
+    }
+
+    const {
+      password: userPassword,
+      refreshToken,
+      ...userData
+    } = user.toObject();
+    const accessToken = generateAccessToken(user._id, user.role);
+    const newRefreshToken = generateRefreshToken(user._id);
+
+    await User.findByIdAndUpdate(
+      user._id,
+      { refreshToken: newRefreshToken },
+      { new: true }
+    );
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // Expressed in milliseconds
+    });
+
+    return res.status(200).json({
+      success: true,
+      userData,
+      accessToken,
+    });
   } catch (error) {
+    console.error("Error during login:", error);
     return res.status(500).json({
       success: false,
       message: "Something went wrong during login.",
@@ -303,7 +313,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
   }
 });
 
-const addFavoritePet = async (req, res) => {
+const addFavoritePet = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender } =
     req.body;
@@ -348,8 +358,8 @@ const addFavoritePet = async (req, res) => {
       .status(500)
       .json({ message: "An error occurred while adding favorite pet" });
   }
-};
-const addFavoriteProduct = async (req, res) => {
+});
+const addFavoriteProduct = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { productID, nameProduct, nameBrand, nameCate, price, images } =
     req.body;
@@ -393,8 +403,8 @@ const addFavoriteProduct = async (req, res) => {
       .status(500)
       .json({ message: "An error occurred while adding favorite product" });
   }
-};
-const getFavorites = async (req, res) => {
+});
+const getFavorites = asyncHandler(async (req, res) => {
   const { _id } = req.user;
 
   try {
@@ -417,6 +427,52 @@ const getFavorites = async (req, res) => {
       .status(500)
       .json({ message: "An error occurred while fetching favorites" });
   }
+});
+
+const addAddress = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { address } = req.body;
+  try {
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.Address.push(address);
+    await user.save();
+
+    res.status(201).json({
+      message: "Address added successfully",
+      data: user.Address,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "An error occurred while adding address" });
+  }
+});
+const deleteAddress = async (req, res) => {
+  const { _id } = req.user;
+  const addressIndex = req.params.addressIndex;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (addressIndex < 0 || addressIndex >= user.Address.length) {
+      return res.status(400).json({ message: "Invalid address index" });
+    }
+    user.Address.splice(addressIndex, 1);
+
+    await user.save();
+
+    return res.status(200).json({ message: "Address deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting address:", error);
+    return res
+      .status(500)
+      .json({ message: "An error occurred while deleting address" });
+  }
 };
 
 module.exports = {
@@ -434,4 +490,6 @@ module.exports = {
   addFavoritePet,
   addFavoriteProduct,
   getFavorites,
+  addAddress,
+  deleteAddress,
 };

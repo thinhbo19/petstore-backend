@@ -6,15 +6,18 @@ const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 router.post("/register", UserControls.register);
 router.post("/login", UserControls.login);
 router.get("/logout", UserControls.logout);
+//get user
 router.get(
   "/allUser",
   [verifyAccessToken, isAdmin],
   UserControls.getallAccount
 );
 router.get("/current", verifyAccessToken, UserControls.getOneUser);
+//password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
 router.patch("/resetpassword", UserControls.resetPassword);
+//delete user
 router.delete("/delete", [verifyAccessToken, isAdmin], UserControls.deleteUser);
 router.patch(
   "/update",
@@ -27,6 +30,7 @@ router.patch(
   [verifyAccessToken, isAdmin],
   UserControls.updateUserByAdmin
 );
+//favorite
 router.put("/favoritePet", [verifyAccessToken], UserControls.addFavoritePet);
 router.put(
   "/favoriteProduct",
@@ -34,5 +38,13 @@ router.put(
   UserControls.addFavoriteProduct
 );
 router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
+
+//address
+router.post("/address", [verifyAccessToken], UserControls.addAddress);
+router.delete(
+  "/address/:addressIndex",
+  [verifyAccessToken],
+  UserControls.deleteAddress
+);
 
 module.exports = router;
