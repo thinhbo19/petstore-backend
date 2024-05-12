@@ -27,5 +27,12 @@ router.patch(
   [verifyAccessToken, isAdmin],
   UserControls.updateUserByAdmin
 );
+router.put("/favoritePet", [verifyAccessToken], UserControls.addFavoritePet);
+router.put(
+  "/favoriteProduct",
+  [verifyAccessToken],
+  UserControls.addFavoriteProduct
+);
+router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 
 module.exports = router;

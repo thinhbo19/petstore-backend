@@ -7,7 +7,7 @@ var brandSchema = new mongoose.Schema({
   },
   category: {
     cateID: { type: mongoose.Schema.ObjectId, ref: "Category", require: true },
-    nameCate: String,
+    nameCate: { type: String },
   },
 });
 

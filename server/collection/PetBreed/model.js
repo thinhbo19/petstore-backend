@@ -13,7 +13,7 @@ var PetBreedSchema = new mongoose.Schema({
       ref: "PetSpecies",
       required: true,
     },
-    nameSpecies: String,
+    nameSpecies: { type: String },
   },
 });
 

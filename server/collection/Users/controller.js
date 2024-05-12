@@ -303,6 +303,122 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
   }
 });
 
+const addFavoritePet = async (req, res) => {
+  const { _id } = req.user;
+  const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender } =
+    req.body;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const existingPetIndex = user.favoritePets.findIndex(
+      (pet) => pet.petID.toString() === petID
+    );
+
+    if (existingPetIndex !== -1) {
+      user.favoritePets.splice(existingPetIndex, 1);
+      await user.save();
+      return res.status(200).json({
+        message:
+          "The pet has been successfully removed from your favorite list",
+      });
+    }
+
+    user.favoritePets.push({
+      petID,
+      imgPet,
+      namePet,
+      nameBreed,
+      nameSpecies,
+      age,
+      gender,
+    });
+    await user.save();
+    res.status(201).json({
+      message: "The pet has been added to your favorite list",
+      data: user.favoritePets,
+    });
+  } catch (error) {
+    console.error("Error while adding favorite pet:", error);
+    res
+      .status(500)
+      .json({ message: "An error occurred while adding favorite pet" });
+  }
+};
+const addFavoriteProduct = async (req, res) => {
+  const { _id } = req.user;
+  const { productID, nameProduct, nameBrand, nameCate, price, images } =
+    req.body;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const existingProductIndex = user.favoriteProduct.findIndex(
+      (product) => product.productID.toString() === productID
+    );
+
+    if (existingProductIndex !== -1) {
+      user.favoriteProduct.splice(existingProductIndex, 1);
+      await user.save();
+      return res.status(200).json({
+        message:
+          "The product has been successfully removed from your favorite list",
+      });
+    }
+
+    user.favoriteProduct.push({
+      productID,
+      nameProduct,
+      nameBrand,
+      nameCate,
+      price,
+      images,
+    });
+    await user.save();
+    res.status(201).json({
+      message: "The product has been added to your favorite list",
+      data: user.favoriteProduct,
+    });
+  } catch (error) {
+    console.error("Error while adding favorite product:", error);
+    res
+      .status(500)
+      .json({ message: "An error occurred while adding favorite product" });
+  }
+};
+const getFavorites = async (req, res) => {
+  const { _id } = req.user;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const allFavorites = [...user.favoritePets, ...user.favoriteProduct];
+    allFavorites.sort((a, b) => b.createdAt - a.createdAt);
+
+    res.status(200).json({
+      message: "List of favorite items",
+      favorites: allFavorites.reverse(),
+    });
+  } catch (error) {
+    console.error("Error while fetching favorites:", error);
+    res
+      .status(500)
+      .json({ message: "An error occurred while fetching favorites" });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -315,4 +431,7 @@ module.exports = {
   deleteUser,
   updateUserByUser,
   updateUserByAdmin,
+  addFavoritePet,
+  addFavoriteProduct,
+  getFavorites,
 };

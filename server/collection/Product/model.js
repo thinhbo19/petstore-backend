@@ -8,8 +8,8 @@ var productSchema = new mongoose.Schema({
   },
   brand: {
     brandID: { type: mongoose.Schema.ObjectId, ref: "Brand", require: true },
-    nameBrand: String,
-    nameCate: String,
+    nameBrand: { type: String },
+    nameCate: { type: String },
   },
   quantity: { type: Number },
   price: { type: Number },

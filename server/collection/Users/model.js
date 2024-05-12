@@ -39,20 +39,28 @@ var userSchema = new mongoose.Schema(
     ],
     favoritePets: [
       {
-        type: mongoose.Types.ObjectId,
-        ref: "Pets",
+        petID: {
+          type: mongoose.Types.ObjectId,
+          ref: "Pets",
+        },
+        imgPet: { type: String },
+        namePet: { type: String },
+        nameBreed: { type: String },
+        nameSpecies: { type: String },
+        age: { type: Number },
+        gender: { type: String },
+        createAt: { type: Date, default: Date.now() },
       },
     ],
-    favoriteFood: [
+    favoriteProduct: [
       {
-        type: mongoose.Types.ObjectId,
-        ref: "Food",
-      },
-    ],
-    favoriteToys: [
-      {
-        type: mongoose.Types.ObjectId,
-        ref: "Toys",
+        productID: { type: mongoose.Types.ObjectId, ref: "Product" },
+        nameProduct: { type: String },
+        nameBrand: { type: String },
+        nameCate: { type: String },
+        price: { type: Number },
+        images: { type: String },
+        createAt: { type: Date, default: Date.now() },
       },
     ],
     isBlocked: {

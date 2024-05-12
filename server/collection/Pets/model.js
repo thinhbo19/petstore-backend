@@ -10,8 +10,8 @@ var PetSchema = new mongoose.Schema({
   },
   petBreed: {
     breedID: { type: mongoose.Types.ObjectId, ref: "PetBreed", required: true },
-    nameBreed: String,
-    nameSpecies: String,
+    nameBreed: { type: String },
+    nameSpecies: { type: String },
   },
   age: { type: Number },
   gender: { type: String, enum: ["Male", "Female", "Castrated"] },
@@ -24,5 +24,15 @@ var PetSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  rating: [
+    {
+      postBy: { type: mongoose.Schema.ObjectId, ref: "User", require: true },
+      username: { type: String },
+      start: { type: Number },
+      comment: { type: String },
+      dateComment: { type: Date, default: Date.now() },
+      feedback_img: { type: String },
+    },
+  ],
 });
 module.exports = mongoose.model("Pets", PetSchema);
