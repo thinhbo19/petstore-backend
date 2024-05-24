@@ -26,9 +26,9 @@ router.patch(
   UserControls.updateUserByUser
 );
 router.patch(
-  "/:uid",
+  "/adminUpdate",
   [verifyAccessToken, isAdmin],
-  UserControls.updateUserByAdmin
+  UserControls.blockAccount
 );
 //favorite
 router.put("/favoritePet", [verifyAccessToken], UserControls.addFavoritePet);

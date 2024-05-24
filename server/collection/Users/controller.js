@@ -7,6 +7,7 @@ const {
 const jwt = require("jsonwebtoken");
 const sendMail = require("../../utils/sendMail");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 
 const register = asyncHandler(async (req, res) => {
   try {
@@ -80,7 +81,12 @@ const login = asyncHandler(async (req, res) => {
         message: "User not found",
       });
     }
-
+    if (user.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked.",
+      });
+    }
     const isPasswordCorrect = await user.isCorrectPassword(password);
 
     if (!isPasswordCorrect) {
@@ -106,7 +112,7 @@ const login = asyncHandler(async (req, res) => {
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // Expressed in milliseconds
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -145,7 +151,7 @@ const logout = asyncHandler(async (req, res) => {
 
 const getallAccount = asyncHandler(async (req, res) => {
   try {
-    const user = await User.find().select("-refreshToken -password -role");
+    const user = await User.find().select("-refreshToken -password");
     return res.status(200).json({
       success: true,
       users: user,
@@ -282,34 +288,26 @@ const updateUserByUser = asyncHandler(async (req, res) => {
   }
 });
 
-const updateUserByAdmin = asyncHandler(async (req, res) => {
+const blockAccount = asyncHandler(async (req, res) => {
   try {
-    const { uid } = req.params;
-    if (Object.keys(req.body).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing inputs",
-      });
-    }
-    const user = await User.findByIdAndUpdate(uid, req.body, {
-      new: true,
-    }).select("-password -role");
+    const { userId, isBlocked } = req.body;
+    const user = await User.findById(userId);
+
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return res.status(404).json({ message: "User not found" });
     }
-    return res.status(200).json({
-      success: true,
-      updateUser: user,
+
+    user.isBlocked = isBlocked !== undefined ? isBlocked : user.isBlocked;
+    const updatedUser = await user.save();
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
     });
   } catch (error) {
-    console.error("Error updating user:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 });
 
@@ -449,6 +447,7 @@ const addAddress = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred while adding address" });
   }
 });
+
 const deleteAddress = async (req, res) => {
   const { _id } = req.user;
   const addressIndex = req.params.addressIndex;
@@ -486,7 +485,7 @@ module.exports = {
   resetPassword,
   deleteUser,
   updateUserByUser,
-  updateUserByAdmin,
+  blockAccount,
   addFavoritePet,
   addFavoriteProduct,
   getFavorites,

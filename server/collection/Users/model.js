@@ -37,6 +37,19 @@ var userSchema = new mongoose.Schema(
         type: String,
       },
     ],
+    Voucher: [
+      {
+        voucherID: {
+          type: mongoose.Types.ObjectId,
+          require: true,
+          ref: "Voucher",
+        },
+        nameVoucher: { type: String },
+        discount: { type: Number },
+        exclusive: { type: Number },
+        expiry: { type: Date },
+      },
+    ],
     favoritePets: [
       {
         petID: {
@@ -90,6 +103,10 @@ var userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
   try {
+    if (!this.isModified("password")) {
+      return next();
+    }
+
     const salt = bcrypt.genSaltSync(10);
     this.password = await bcrypt.hash(this.password, salt);
     next();
