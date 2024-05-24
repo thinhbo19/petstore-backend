@@ -245,17 +245,20 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 const deleteUser = asyncHandler(async (req, res) => {
   try {
-    const { _id } = req.query;
-    if (!_id) throw new Error("Missing Id!!");
-    const user = await User.findByIdAndDelete(_id);
+    const { uid } = req.body;
+    if (!uid) {
+      return res.status(400).json({ success: false, message: "Missing Id!!" });
+    }
+    const user = await User.findByIdAndDelete(uid);
     return res.status(200).json({
-      success: user ? true : false,
-      deleteUser: user
-        ? `User with email ${user.email} has been deleted`
-        : "No user is deleted",
+      success: true,
+      message: `User with email ${user.email} has been deleted`,
     });
   } catch (error) {
-    throw new Error(error);
+    console.error("Error in deleting user:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
   }
 });
 
@@ -311,6 +314,30 @@ const blockAccount = asyncHandler(async (req, res) => {
   }
 });
 
+const changeRole = asyncHandler(async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found!!" });
+    }
+    if (user.role === "User") {
+      user.role = "Admin";
+    } else {
+      user.role = "User";
+    }
+    const updatedUser = await user.save();
+    res.status(200).json({
+      message: "Change role successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error when change",
+      error: error.message,
+    });
+  }
+});
 const addFavoritePet = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender } =
@@ -486,6 +513,7 @@ module.exports = {
   deleteUser,
   updateUserByUser,
   blockAccount,
+  changeRole,
   addFavoritePet,
   addFavoriteProduct,
   getFavorites,
