@@ -127,11 +127,28 @@ const getCurrentPets = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Lỗi." });
   }
 });
+const getPetByBreed = asyncHandler(async (req, res) => {
+  const { breed } = req.params;
 
+  if (!breed) {
+    res.status(400);
+    throw new Error("Name breed parameter is required");
+  }
+
+  const pets = await Pets.find({ "petBreed.nameBreed": breed });
+
+  if (pets.length === 0) {
+    res.status(404);
+    throw new Error(`No pets found for breed: ${breed}`);
+  }
+
+  res.status(200).json(pets);
+});
 module.exports = {
   createNewPets,
   getAllPets,
   deletePet,
   changePets,
   getCurrentPets,
+  getPetByBreed,
 };

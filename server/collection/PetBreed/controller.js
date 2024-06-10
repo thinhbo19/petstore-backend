@@ -30,7 +30,6 @@ const createNewBreed = asyncHandler(async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
-
 const getAllPetBreed = asyncHandler(async (req, res) => {
   try {
     const petBreed = await PetBreed.find();
@@ -42,7 +41,6 @@ const getAllPetBreed = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
-
 const changePetBreed = asyncHandler(async (req, res) => {
   try {
     const { bid } = req.params;
@@ -81,9 +79,65 @@ const deletePetBreed = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+const getBreedBySpecies = asyncHandler(async (req, res) => {
+  const { species } = req.params;
+
+  if (!species) {
+    res.status(400);
+    throw new Error("Species parameter is required");
+  }
+
+  const breeds = await PetBreed.find({ "petSpecies.nameSpecies": species });
+
+  if (breeds.length === 0) {
+    res.status(404);
+    throw new Error(`No breeds found for species: ${species}`);
+  }
+
+  res.status(200).json(breeds);
+});
+const sortingBreed = asyncHandler(async (req, res) => {
+  const { species } = req.params;
+  const { sort } = req.query;
+  let sortOption = {};
+
+  switch (sort) {
+    case "a-z":
+      sortOption = { nameBreed: 1 }; // Sort by letter: A to Z
+      break;
+    case "z-a":
+      sortOption = { nameBreed: -1 }; // Sort by letter: Z to A
+      break;
+    case "latest":
+      sortOption = { createdAt: -1 }; // Sort by latest
+      break;
+    case "oldest":
+      sortOption = { createdAt: 1 }; // Sort by oldest
+      break;
+    default:
+      sortOption = {}; // No sorting
+  }
+
+  try {
+    const breeds = await PetBreed.find({
+      "petSpecies.nameSpecies": species,
+    }).sort(sortOption);
+    if (breeds.length === 0) {
+      return res
+        .status(404)
+        .json({ message: `No breeds found for species: ${species}` });
+    }
+    return res.status(200).json(breeds);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createNewBreed,
   getAllPetBreed,
   changePetBreed,
   deletePetBreed,
+  getBreedBySpecies,
+  sortingBreed,
 };

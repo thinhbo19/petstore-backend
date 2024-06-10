@@ -9,11 +9,7 @@ router.post(
   //[verifyAccessToken, isAdmin],
   petBreedControls.createNewBreed
 );
-router.get(
-  "/getAllBreed",
-  [verifyAccessToken, isAdmin],
-  petBreedControls.getAllPetBreed
-);
+router.get("/getAllBreed", petBreedControls.getAllPetBreed);
 router.patch(
   "/changeBreed/:bid",
   // [verifyAccessToken, isAdmin],
@@ -24,4 +20,6 @@ router.delete(
   [verifyAccessToken, isAdmin],
   petBreedControls.deletePetBreed
 );
+router.get("/getBreedBySpecies/:species", petBreedControls.getBreedBySpecies);
+router.get("/sortBreed/:species", petBreedControls.sortingBreed);
 module.exports = router;

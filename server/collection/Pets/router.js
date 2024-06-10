@@ -22,4 +22,6 @@ router.get(
   petsControlls.getCurrentPets
 );
 
+router.get("/getPetByBreed/:breed", petsControlls.getPetByBreed);
+
 module.exports = router;
