@@ -23,5 +23,6 @@ router.get(
 );
 
 router.get("/getPetByBreed/:breed", petsControlls.getPetByBreed);
-
+router.get("/sortPet/:breed", petsControlls.sortingPet);
+router.get("/filterPrice/:breed", petsControlls.filterPricePet);
 module.exports = router;

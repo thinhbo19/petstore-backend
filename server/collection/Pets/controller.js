@@ -48,7 +48,6 @@ const createNewPets = asyncHandler(async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
-
 const getAllPets = asyncHandler(async (req, res) => {
   try {
     const allPets = await Pets.find();
@@ -144,6 +143,83 @@ const getPetByBreed = asyncHandler(async (req, res) => {
 
   res.status(200).json(pets);
 });
+const sortingPet = asyncHandler(async (req, res) => {
+  const { breed } = req.params;
+  const { sort } = req.query;
+  let sortOption = {};
+
+  switch (sort) {
+    case "a-z":
+      sortOption = { namePet: 1 }; // Sort by letter: A to Z
+      break;
+    case "z-a":
+      sortOption = { namePet: -1 }; // Sort by letter: Z to A
+      break;
+    case "latest":
+      sortOption = { createdAt: -1 }; // Sort by latest
+      break;
+    case "oldest":
+      sortOption = { createdAt: 1 }; // Sort by oldest
+      break;
+    case "price-low-to-high":
+      sortOption = { price: 1 }; // Sort by price: Low to High
+      break;
+    case "price-high-to-low":
+      sortOption = { price: -1 }; // Sort by price: High to Low
+      break;
+    default:
+      sortOption = {}; // No sorting
+  }
+
+  try {
+    const pets = await Pets.find({
+      "petBreed.nameBreed": breed,
+    }).sort(sortOption);
+    if (pets.length === 0) {
+      return res
+        .status(404)
+        .json({ message: `No pets found for breed: ${breed}` });
+    }
+    return res.status(200).json(pets);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+const filterPricePet = asyncHandler(async (req, res) => {
+  const { breed } = req.params;
+  const { minPrice, maxPrice } = req.query;
+
+  let priceQuery = {};
+  if (minPrice && isNaN(minPrice)) {
+    return res.status(400).json({ message: "Invalid min price" });
+  }
+  if (maxPrice && isNaN(maxPrice)) {
+    return res.status(400).json({ message: "Invalid max price" });
+  }
+  if (minPrice) {
+    priceQuery.$gte = parseFloat(minPrice);
+  }
+  if (maxPrice) {
+    priceQuery.$lte = parseFloat(maxPrice);
+  }
+  try {
+    const pets = await Pets.find({
+      "petBreed.nameBreed": breed,
+      price: priceQuery,
+    });
+
+    if (pets.length === 0) {
+      return res.status(404).json({
+        data: pets,
+        message: "No pets found in this price range",
+      });
+    }
+    return res.status(200).json(pets);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createNewPets,
   getAllPets,
@@ -151,4 +227,6 @@ module.exports = {
   changePets,
   getCurrentPets,
   getPetByBreed,
+  sortingPet,
+  filterPricePet,
 };

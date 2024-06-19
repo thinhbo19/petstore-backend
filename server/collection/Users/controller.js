@@ -54,7 +54,6 @@ const register = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const login = asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -129,7 +128,6 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const logout = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
   if (!cookie || !cookie.refreshToken)
@@ -148,7 +146,6 @@ const logout = asyncHandler(async (req, res) => {
     mess: "You are logged out!!!",
   });
 });
-
 const getallAccount = asyncHandler(async (req, res) => {
   try {
     const user = await User.find().select("-refreshToken -password");
@@ -160,7 +157,6 @@ const getallAccount = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
-
 const getOneUser = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const user = await User.findById(_id).select("-refreshToken -password -role");
@@ -169,7 +165,6 @@ const getOneUser = asyncHandler(async (req, res) => {
     rs: user ? user : "User not found",
   });
 });
-
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
 
@@ -188,7 +183,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       : "Refresh token is not matched",
   });
 });
-
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.query;
   if (!email) {
@@ -219,7 +213,6 @@ const forgotPassword = asyncHandler(async (req, res) => {
     sendMailResponse: sendMailResponse,
   });
 });
-
 const resetPassword = asyncHandler(async (req, res) => {
   const { password, token } = req.body;
   if (!password || !token) throw new Error("Miss input!!");
@@ -242,7 +235,6 @@ const resetPassword = asyncHandler(async (req, res) => {
     mes: user ? "Update password" : "Something went wrong",
   });
 });
-
 const deleteUser = asyncHandler(async (req, res) => {
   try {
     const { uid } = req.body;
@@ -261,7 +253,6 @@ const deleteUser = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Internal Server Error" });
   }
 });
-
 const updateUserByUser = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
@@ -290,7 +281,6 @@ const updateUserByUser = asyncHandler(async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 });
-
 const blockAccount = asyncHandler(async (req, res) => {
   try {
     const { userId, isBlocked } = req.body;
@@ -313,7 +303,6 @@ const blockAccount = asyncHandler(async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 });
-
 const changeRole = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.body;
@@ -453,7 +442,6 @@ const getFavorites = asyncHandler(async (req, res) => {
       .json({ message: "An error occurred while fetching favorites" });
   }
 });
-
 const addAddress = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { address } = req.body;
@@ -474,7 +462,6 @@ const addAddress = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred while adding address" });
   }
 });
-
 const deleteAddress = async (req, res) => {
   const { _id } = req.user;
   const addressIndex = req.params.addressIndex;

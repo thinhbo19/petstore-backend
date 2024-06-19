@@ -5,6 +5,7 @@ const petBreedRouter = require("./collection/PetBreed/router");
 const cateRouter = require("./collection/Category/router");
 const brandRouter = require("./collection/Brand/router");
 const productRouter = require("./collection/Product/router");
+const newsRouter = require("./collection/News/router");
 const { notFound, errHandle } = require("./middlewares/errHandler");
 
 const initRouter = (app) => {
@@ -15,6 +16,7 @@ const initRouter = (app) => {
   app.use("/api/cate", cateRouter);
   app.use("/api/brand", brandRouter);
   app.use("/api/product", productRouter);
+  app.use("/api/news", newsRouter);
 
   app.use(notFound);
   app.use(errHandle);
