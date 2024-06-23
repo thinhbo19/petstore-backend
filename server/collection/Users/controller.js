@@ -165,6 +165,36 @@ const getOneUser = asyncHandler(async (req, res) => {
     rs: user ? user : "User not found",
   });
 });
+const getUserMess = asyncHandler(async (req, res) => {
+  try {
+    const { _id } = req.query;
+    if (!_id) {
+      return res.status(400).json({
+        success: false,
+        message: "UID không được truyền",
+      });
+    }
+    const user = await User.findById(_id).select(
+      "-refreshToken -password -role"
+    );
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng",
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: user,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Lỗi máy chủ",
+      error: error.message,
+    });
+  }
+});
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
 
@@ -305,17 +335,19 @@ const blockAccount = asyncHandler(async (req, res) => {
 });
 const changeRole = asyncHandler(async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, newRole } = req.body;
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found!!" });
     }
-    if (user.role === "User") {
-      user.role = "Admin";
-    } else {
-      user.role = "User";
+    const validRoles = ["Admin", "User", "CSD"];
+    if (!validRoles.includes(newRole)) {
+      return res.status(400).json({ message: "Invalid role" });
     }
+
+    user.role = newRole;
     const updatedUser = await user.save();
+
     res.status(200).json({
       message: "Change role successfully",
       user: updatedUser,
@@ -494,6 +526,7 @@ module.exports = {
   logout,
   getallAccount,
   getOneUser,
+  getUserMess,
   refreshAccessToken,
   forgotPassword,
   resetPassword,

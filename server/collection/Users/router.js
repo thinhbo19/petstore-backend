@@ -13,6 +13,11 @@ router.get(
   UserControls.getallAccount
 );
 router.get("/current", verifyAccessToken, UserControls.getOneUser);
+router.get(
+  "/userCurrent",
+  [verifyAccessToken, isAdmin],
+  UserControls.getUserMess
+);
 //password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
