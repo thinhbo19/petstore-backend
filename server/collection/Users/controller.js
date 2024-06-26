@@ -38,6 +38,7 @@ const register = asyncHandler(async (req, res) => {
         return res.status(200).json({
           success: true,
           message: "Registration successful. Please proceed to login.",
+          data: newUser,
         });
       } else {
         return res.status(500).json({
