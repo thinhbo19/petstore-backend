@@ -1,10 +1,10 @@
-const mongoose = require("mongoose");
 require("dotenv").config();
+const mongoose = require("mongoose");
 
 const dbConnect = () => {
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URL;
   if (!uri) {
-    throw new Error("MONGODB_URI is not defined");
+    throw new Error("MONGODB_URL is not defined");
   }
   mongoose
     .connect(uri, {
