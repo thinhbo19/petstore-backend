@@ -25,7 +25,6 @@ const createBrand = asyncHandler(async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
-
 const getAllBrand = asyncHandler(async (req, res) => {
   try {
     const brands = await Brand.find();
