@@ -42,27 +42,40 @@ const getAllPetBreed = asyncHandler(async (req, res) => {
   }
 });
 const changePetBreed = asyncHandler(async (req, res) => {
-  try {
-    const { bid } = req.params;
-    const { nameBreed } = req.body;
-    const updateNameBreed = await PetBreed.findByIdAndUpdate(
-      bid,
-      { nameBreed },
-      { new: true }
-    );
-    if (!updateNameBreed) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Can not find pet breed!!!" });
-    }
-    return res.status(200).json({
-      success: true,
-      message: updateNameBreed,
-    });
-  } catch (error) {
+  const { bid } = req.params;
+  const { nameBreed } = req.body;
+  console.log(nameBreed);
+  if (!nameBreed || typeof nameBreed !== "string") {
     return res.status(400).json({
       success: false,
-      message: "Error update.",
+      message: "Invalid 'nameBreed' parameter. It must be a non-empty string.",
+    });
+  }
+
+  try {
+    const updateNameBreed = await PetBreed.findByIdAndUpdate(
+      bid,
+      { nameBreed: nameBreed },
+      { new: true }
+    );
+
+    if (!updateNameBreed) {
+      return res.status(404).json({
+        success: false,
+        message: "Cannot find pet breed with the given ID.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Pet breed updated successfully.",
+      data: updateNameBreed,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error. Unable to update pet breed.",
     });
   }
 });

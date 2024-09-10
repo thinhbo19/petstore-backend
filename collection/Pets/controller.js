@@ -3,6 +3,13 @@ const asyncHandler = require("express-async-handler");
 const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
 
+const formatString = (input) => {
+  return input
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
 const createNewPets = asyncHandler(async (req, res) => {
   try {
     const {
@@ -157,19 +164,30 @@ const getPetByBreed = asyncHandler(async (req, res) => {
 
   if (!breed) {
     res.status(400);
-    throw new Error("Name breed parameter is required");
+    throw new Error("Breed parameter is required");
   }
 
-  const pets = await Pets.find({ "petBreed.breedID": breed });
+  try {
+    const formattedBreed = formatString(breed);
+    console.log(formattedBreed);
+    const pets = await Pets.find({ "petBreed.nameBreed": formattedBreed });
+    if (pets.length === 0) {
+      return res.status(404).json({
+        message: `No pets found for breed: ${formattedBreed}`,
+      });
+    }
 
-  if (pets.length === 0) {
-    res.status(404).json({
-      message: `No pets found for breed: ${breed}`,
+    res.status(200).json(pets);
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
     });
   }
-
-  res.status(200).json(pets);
 });
+
+module.exports = getPetByBreed;
+
 const sortingPet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { sort } = req.query;
