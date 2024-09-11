@@ -4,10 +4,12 @@ const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
 
 const formatString = (input) => {
-  return input
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
+  const words = input.split("-");
+  const formattedWords = words.map(
+    (word) => word.charAt(0).toUpperCase() + word.slice(1)
+  );
+
+  return formattedWords.join(" ");
 };
 
 const createNewPets = asyncHandler(async (req, res) => {
@@ -169,7 +171,7 @@ const getPetByBreed = asyncHandler(async (req, res) => {
 
   try {
     const formattedBreed = formatString(breed);
-    console.log(formattedBreed);
+
     const pets = await Pets.find({ "petBreed.nameBreed": formattedBreed });
     if (pets.length === 0) {
       return res.status(404).json({
