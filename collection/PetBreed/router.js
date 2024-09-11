@@ -10,6 +10,7 @@ router.post(
   petBreedControls.createNewBreed
 );
 router.get("/getAllBreed", petBreedControls.getAllPetBreed);
+router.get("/getCurrentBreed/:bid", petBreedControls.getCurrentBreed);
 router.put(
   "/changeBreed/:bid",
   [verifyAccessToken, isAdmin],

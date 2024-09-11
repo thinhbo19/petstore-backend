@@ -6,9 +6,9 @@ var productSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  brand: {
-    brandID: { type: mongoose.Schema.ObjectId, ref: "Brand", require: true },
-    nameBrand: { type: String },
+  shortTitle: { type: String },
+  category: {
+    categoryID: { type: mongoose.Schema.ObjectId, ref: "Brand", require: true },
     nameCate: { type: String },
   },
   quantity: { type: Number },

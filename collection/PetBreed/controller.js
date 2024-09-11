@@ -44,7 +44,6 @@ const getAllPetBreed = asyncHandler(async (req, res) => {
 const changePetBreed = asyncHandler(async (req, res) => {
   const { bid } = req.params;
   const { nameBreed } = req.body;
-  console.log(nameBreed);
   if (!nameBreed || typeof nameBreed !== "string") {
     return res.status(400).json({
       success: false,
@@ -77,6 +76,20 @@ const changePetBreed = asyncHandler(async (req, res) => {
       success: false,
       message: "Server error. Unable to update pet breed.",
     });
+  }
+});
+const getCurrentBreed = asyncHandler(async (req, res) => {
+  try {
+    const { bid } = req.params;
+    const existingBreed = await PetBreed.findById(bid);
+    if (!existingBreed) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không tìm thấy!!!" });
+    }
+    return res.status(200).json({ success: true, breed: existingBreed });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: "Lỗi." });
   }
 });
 const deletePetBreed = asyncHandler(async (req, res) => {
@@ -173,4 +186,5 @@ module.exports = {
   getBreedBySpecies,
   getBreedByNameSpecies,
   sortingBreed,
+  getCurrentBreed,
 };

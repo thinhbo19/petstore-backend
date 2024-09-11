@@ -1,31 +1,32 @@
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const Product = require("./model");
-const Brand = require("../Brand/model");
+const Category = require("../Category/model.js");
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
-    const { nameProduct, brandID, quantity, price, description } = req.body;
+    const { nameProduct, category, shortTitle, quantity, price, description } =
+      req.body;
     const images = req.files.map((file) => file.path);
 
-    if (!mongoose.Types.ObjectId.isValid(brandID)) {
-      return res.status(400).json({ message: "Invalid brand ID" });
+    if (!mongoose.Types.ObjectId.isValid(category)) {
+      return res.status(400).json({ message: "Invalid category ID" });
     }
 
-    const existingBrand = await Brand.findById(brandID);
-    if (!existingBrand) {
+    const existingCate = await Category.findById(category);
+    if (!existingCate) {
       return res
         .status(404)
-        .json({ message: "Brand not found with the provided ID" });
+        .json({ message: "Category not found with the provided ID" });
     }
 
     const newProduct = new Product({
       nameProduct,
-      brand: {
-        _id: existingBrand._id,
-        nameBrand: existingBrand.nameBrand,
-        nameCate: existingBrand.category.nameCate,
+      category: {
+        categoryID: category,
+        nameCate: existingCate.nameCategory,
       },
+      shortTitle,
       quantity,
       price,
       description,
