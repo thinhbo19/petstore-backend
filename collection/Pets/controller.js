@@ -94,10 +94,18 @@ const changePets = asyncHandler(async (req, res) => {
       vaccination,
       characteristic,
     } = req.body;
+    if (!req.files || req.files.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No files uploaded." });
+    }
+
+    const imgPet = req.files.map((file) => file.path);
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
       {
         namePet,
+        imgPet,
         age,
         gender,
         description,

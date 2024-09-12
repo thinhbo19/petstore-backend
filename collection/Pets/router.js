@@ -11,7 +11,12 @@ router.post(
 );
 router.get("/allPets", petsControlls.getAllPets);
 router.delete("/:pid", [verifyAccessToken, isAdmin], petsControlls.deletePet);
-router.put("/:pid", [verifyAccessToken, isAdmin], petsControlls.changePets);
+router.put(
+  "/:pid",
+  uploadCloud.array("imgPet"),
+  [verifyAccessToken, isAdmin],
+  petsControlls.changePets
+);
 router.get("/current/:pid", petsControlls.getCurrentPets);
 router.get("/currentPet/:pName", petsControlls.getCurrentPetsByName);
 
