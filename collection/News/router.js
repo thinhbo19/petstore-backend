@@ -11,7 +11,6 @@ router.post(
 );
 
 router.get("/", newsControlls.getAllNews);
-router.get("/:nid", newsControlls.getCurrentNews);
 router.put(
   "/:nid",
   [verifyAccessToken, isAdmin],
@@ -19,6 +18,7 @@ router.put(
   newsControlls.changeNews
 );
 router.delete("/:nid", [verifyAccessToken, isAdmin], newsControlls.deleteNews);
-router.get("/:nName", newsControlls.getCurrentNewsByName);
+router.get("/current/:nName", newsControlls.getCurrentNewsByName);
+router.get("/:nid", newsControlls.getCurrentNews);
 
 module.exports = router;

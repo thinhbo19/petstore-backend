@@ -355,6 +355,7 @@ const updateUserByUser = asyncHandler(async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 });
+
 const blockAccount = asyncHandler(async (req, res) => {
   try {
     const { userId, isBlocked } = req.body;

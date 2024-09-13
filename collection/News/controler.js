@@ -1,5 +1,6 @@
 const News = require("./model");
 const asyncHandler = require("express-async-handler");
+const slugify = require("slugify");
 
 const createNews = asyncHandler(async (req, res) => {
   try {
@@ -78,18 +79,30 @@ const deleteNews = asyncHandler(async (req, res) => {
 const getCurrentNewsByName = asyncHandler(async (req, res) => {
   try {
     const { nName } = req.params;
-    const regexName = new RegExp(nName, "i");
 
-    const existing = await News.findOne({
-      title: { $regex: regexName },
-    }).select("-__v");
+    const allNews = await News.find().select("-__v");
+
+    allNews.forEach((article) => {
+      console.log(slugify(article.title));
+    });
+
+    const existing = allNews.find(
+      (article) => slugify(article.title) === nName
+    );
 
     if (!existing) {
-      return res.status(404).json({ success: false, message: "Not Found!!!" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Bài viết không được tìm thấy." });
     }
+
     return res.status(200).json({ success: true, news: existing });
   } catch (error) {
-    return res.status(400).json({ success: false, message: "Lỗi." });
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Đã xảy ra lỗi trong quá trình xử lý yêu cầu.",
+    });
   }
 });
 

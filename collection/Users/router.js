@@ -20,7 +20,7 @@ router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
 router.patch("/resetpassword", UserControls.resetPassword);
 //delete user
-router.delete("", [verifyAccessToken, isAdmin], UserControls.deleteUser);
+router.delete("/", [verifyAccessToken, isAdmin], UserControls.deleteUser);
 router.patch(
   "/update",
   [verifyAccessToken],
