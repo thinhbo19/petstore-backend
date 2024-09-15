@@ -67,6 +67,7 @@ var userSchema = new mongoose.Schema(
         nameSpecies: { type: String },
         age: { type: Number },
         gender: { type: String },
+        price: { type: Number },
         createAt: { type: Date, default: Date.now() },
       },
     ],

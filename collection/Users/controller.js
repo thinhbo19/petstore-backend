@@ -406,7 +406,7 @@ const changeRole = asyncHandler(async (req, res) => {
 });
 const addFavoritePet = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender } =
+  const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender, price } =
     req.body;
 
   try {
@@ -424,6 +424,7 @@ const addFavoritePet = asyncHandler(async (req, res) => {
       user.favoritePets.splice(existingPetIndex, 1);
       await user.save();
       return res.status(200).json({
+        data: user.favoritePets,
         message:
           "The pet has been successfully removed from your favorite list",
       });
@@ -437,6 +438,7 @@ const addFavoritePet = asyncHandler(async (req, res) => {
       nameSpecies,
       age,
       gender,
+      price,
     });
     await user.save();
     res.status(201).json({
