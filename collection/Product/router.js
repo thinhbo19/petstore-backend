@@ -8,7 +8,7 @@ router.post(
   uploadCloud.array("images"),
   productController.createProduct
 );
-router.get("/", [verifyAccessToken, isAdmin], productController.getAllProduct);
+router.get("/", productController.getAllProduct);
 router.get("/current/:prodid", productController.getCurrentProduct);
 router.put(
   "/:productId",

@@ -54,4 +54,6 @@ router.delete(
   UserControls.deleteAddress
 );
 
+router.put("/change-password", UserControls.changePassword);
+
 module.exports = router;

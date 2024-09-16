@@ -72,7 +72,6 @@ const register = asyncHandler(async (req, res) => {
 const activateAccount = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.body;
-    console.log(userId);
     const user = await User.findByIdAndUpdate(
       userId,
       { isBlocked: false },
@@ -97,7 +96,6 @@ const activateAccount = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const login = asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -309,6 +307,29 @@ const resetPassword = asyncHandler(async (req, res) => {
     mes: user ? "Update password" : "Something went wrong",
   });
 });
+const changePassword = async (req, res) => {
+  const { userId, currentPassword, newPassword, confirmPassword } = req.body;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const isMatch = await user.isCorrectPassword(currentPassword);
+  if (!isMatch) {
+    return res.status(400).json({ message: "Current password is incorrect" });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
+  }
+
+  user.password = newPassword;
+
+  await user.save();
+
+  res.status(200).json({ message: "Password updated successfully" });
+};
 const deleteUser = asyncHandler(async (req, res) => {
   try {
     const { uid } = req.body;
@@ -587,4 +608,5 @@ module.exports = {
   getFavorites,
   addAddress,
   deleteAddress,
+  changePassword,
 };
