@@ -33,10 +33,17 @@ var userSchema = new mongoose.Schema(
       default: "User",
       enum: ["Admin", "User", "Staff"],
     },
-    // cart: {
-    //   type: Array,
-    //   default: [],
-    // },
+    cart: [
+      {
+        id: { type: mongoose.Types.ObjectId, refPath: "cart.itemType" },
+        name: { type: String },
+        price: { type: Number },
+        quantity: { type: Number },
+        images: { type: String },
+        itemType: { type: String, enum: ["Pets", "Products"] },
+      },
+    ],
+
     Address: [
       {
         type: String,
@@ -75,7 +82,6 @@ var userSchema = new mongoose.Schema(
       {
         productID: { type: mongoose.Types.ObjectId, ref: "Product" },
         nameProduct: { type: String },
-        nameBrand: { type: String },
         nameCate: { type: String },
         price: { type: Number },
         images: { type: String },

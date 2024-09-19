@@ -1,5 +1,6 @@
-import mongoose from "mongoose";
-const OrderSchema = new mongoose.Schema(
+const mongoose = require("mongoose");
+
+var OrderSchema = new mongoose.Schema(
   {
     products: [
       {
@@ -56,5 +57,4 @@ const OrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Order = mongoose.model("Order", OrderSchema);
-export default Order;
+module.exports = mongoose.model("Order", OrderSchema);
