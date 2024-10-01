@@ -6,6 +6,7 @@ const dbConnect = () => {
   if (!uri) {
     throw new Error("MONGODB_URL is not defined");
   }
+
   mongoose
     .connect(uri, {
       useNewUrlParser: true,
