@@ -2,6 +2,7 @@ const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
+const User = require("../Users/model");
 
 const formatString = (input) => {
   const words = input.split("-");
@@ -161,7 +162,6 @@ const getCurrentPetsByName = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Lỗi." });
   }
 });
-
 const getPetByBreed = asyncHandler(async (req, res) => {
   const { breed } = req.params;
 
@@ -188,9 +188,6 @@ const getPetByBreed = asyncHandler(async (req, res) => {
     });
   }
 });
-
-module.exports = getPetByBreed;
-
 const sortingPet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { sort } = req.query;
@@ -268,6 +265,124 @@ const filterPricePet = asyncHandler(async (req, res) => {
   }
 });
 
+const postRating = asyncHandler(async (req, res) => {
+  try {
+    const { postBy, star, comment } = req.body;
+
+    const feedback_img = req.files.map((file) => file.path);
+
+    const { petId } = req.params;
+
+    const pet = await Pets.findById(petId);
+    const user = await User.findById(postBy);
+
+    if (!pet) {
+      throw new Error("Pet not found");
+    }
+    if (!user) {
+      throw new Error("user not found");
+    }
+    if (!postBy || !star || !comment) {
+      res.status(400);
+      throw new Error(
+        "Please provide complete information: postBy, star, comment."
+      );
+    }
+
+    if (star < 1 || star > 5) {
+      res.status(400);
+      throw new Error("The number of stars must be between 1 and 5.");
+    }
+
+    const existingRatingIndex = pet.rating.findIndex(
+      (r) => r.postBy.toString() === postBy
+    );
+    if (existingRatingIndex !== -1) {
+      // Cập nhật đánh giá nếu đã tồn tại
+      pet.rating[existingRatingIndex] = {
+        postBy,
+        username: user.username,
+        avatar: user.Avatar,
+        star,
+        comment,
+        dateComment: Date.now(),
+        feedback_img: feedback_img,
+      };
+    } else {
+      pet.rating.push({
+        postBy,
+        username: user.username,
+        avatar: user.Avatar,
+        star,
+        comment,
+        dateComment: Date.now(),
+        feedback_img: feedback_img,
+      });
+    }
+    await pet.save();
+    if (existingRatingIndex !== -1) {
+      res.status(200).json({
+        success: true,
+        message: "Rating updated successfully.",
+        pet,
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Rating added successfully.",
+        pet,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      mess: error.message,
+    });
+  }
+});
+
+const deleteRating = asyncHandler(async (req, res) => {
+  try {
+    const { petId } = req.params;
+    const { postBy } = req.body;
+
+    const pet = await Pets.findById(petId); // Tìm thú cưng theo ID
+
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: "Pet not found",
+      });
+    }
+
+    const existingRatingIndex = pet.rating.findIndex(
+      (r) => r.postBy.toString() === postBy
+    );
+
+    console.log(existingRatingIndex);
+    if (!existingRatingIndex) {
+      return res.status(404).json({
+        success: false,
+        message: "Rating not found",
+      });
+    }
+
+    pet.rating.splice(existingRatingIndex, 1);
+    await pet.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Rating deleted successfully.",
+      pet,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = {
   createNewPets,
   getAllPets,
@@ -278,4 +393,6 @@ module.exports = {
   sortingPet,
   filterPricePet,
   getCurrentPetsByName,
+  postRating,
+  deleteRating,
 };

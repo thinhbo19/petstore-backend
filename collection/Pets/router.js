@@ -18,4 +18,13 @@ router.get("/currentPet/:pName", petsControlls.getCurrentPetsByName);
 router.get("/getPetByBreed/:breed", petsControlls.getPetByBreed);
 router.get("/sortPet/:breed", petsControlls.sortingPet);
 router.get("/filterPrice/:breed", petsControlls.filterPricePet);
+
+//rating
+router.post(
+  "/rating/:petId",
+  uploadCloud.array("feedback_img"),
+  petsControlls.postRating
+);
+router.delete("/rating/:petId", petsControlls.deleteRating);
+
 module.exports = router;
