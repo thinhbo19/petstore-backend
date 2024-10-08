@@ -65,9 +65,25 @@ const changeCate = asyncHandler(async (req, res) => {
   }
 });
 
+const getCurrentCate = asyncHandler(async (req, res) => {
+  try {
+    const { cid } = req.params;
+    const existingCate = await Category.findById(cid);
+    if (!existingCate) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không tìm thấy!!!" });
+    }
+    return res.status(200).json({ success: true, category: existingCate });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: "Lỗi." });
+  }
+});
+
 module.exports = {
   createCategory,
   getAllCate,
   deleteCate,
   changeCate,
+  getCurrentCate,
 };

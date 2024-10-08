@@ -7,12 +7,13 @@ router.post(
   [verifyAccessToken, isAdmin],
   CateControll.createCategory
 );
-router.get("/", [verifyAccessToken, isAdmin], CateControll.getAllCate);
+router.get("/", CateControll.getAllCate);
 router.delete(
   "/:cateId",
   [verifyAccessToken, isAdmin],
   CateControll.deleteCate
 );
 router.patch("/:cateId", [verifyAccessToken, isAdmin], CateControll.changeCate);
+router.get("/current/:cid", CateControll.getCurrentCate);
 
 module.exports = router;
