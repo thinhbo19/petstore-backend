@@ -9,6 +9,11 @@ router.post(
   productController.createProduct
 );
 router.get("/", productController.getAllProduct);
+router.get(
+  "/currentProduct/:prodName",
+  productController.getCurrentProductByName
+);
+router.get("/category/:nameCate", productController.findProductsByCategory);
 router.get("/current/:prodid", productController.getCurrentProduct);
 router.put(
   "/:productId",

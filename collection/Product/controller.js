@@ -3,6 +3,15 @@ const asyncHandler = require("express-async-handler");
 const Product = require("./model");
 const Category = require("../Category/model.js");
 
+const formatString = (input) => {
+  const words = input.split("-");
+  const formattedWords = words.map(
+    (word) => word.charAt(0).toUpperCase() + word.slice(1)
+  );
+
+  return formattedWords.join(" ");
+};
+
 const createProduct = asyncHandler(async (req, res) => {
   try {
     const { nameProduct, category, shortTitle, quantity, price, description } =
@@ -113,10 +122,59 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 });
 
+const getCurrentProductByName = asyncHandler(async (req, res) => {
+  try {
+    const { prodName } = req.params;
+    const regexName = new RegExp(prodName, "i");
+
+    const existingProd = await Product.findOne({
+      nameProduct: { $regex: regexName },
+    }).select("-__v");
+
+    if (!existingProd) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không tìm thấy thú cưng!!!" });
+    }
+    return res.status(200).json({ success: true, prod: existingProd });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: "Lỗi." });
+  }
+});
+
+const findProductsByCategory = asyncHandler(async (req, res) => {
+  const { nameCate } = req.params;
+  try {
+    const products = await Product.find({ "category.nameCate": nameCate });
+
+    if (products.length > 0) {
+      return res.status(200).json({
+        success: true,
+        message: `Found ${products.length} products in category: ${nameCate}`,
+        products,
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: `No products found for category: ${nameCate}`,
+      });
+    }
+  } catch (error) {
+    console.error("Error finding products by category:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Could not fetch products",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = {
   createProduct,
   getAllProduct,
   changeProduct,
   deleteProduct,
   getCurrentProduct,
+  getCurrentProductByName,
+  findProductsByCategory,
 };
