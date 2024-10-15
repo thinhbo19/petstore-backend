@@ -1,4 +1,6 @@
 const User = require("./model");
+const Pet = require("../Pets/model");
+const Product = require("../Product/model");
 const asyncHandler = require("express-async-handler");
 const {
   generateAccessToken,
@@ -542,6 +544,157 @@ const getFavorites = asyncHandler(async (req, res) => {
       .json({ message: "An error occurred while fetching favorites" });
   }
 });
+
+const shoppingCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { id, quantity } = req.body;
+
+  try {
+    const user = await User.findById(_id);
+    let images;
+    let displayInfo;
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (!quantity || typeof quantity !== "number" || quantity <= 0) {
+      return res.status(400).json({ message: "Invalid quantity value" });
+    }
+
+    const existingID = user.cart.findIndex((item) => item.id.toString() === id);
+
+    if (existingID !== -1) {
+      user.cart[existingID].quantity = quantity;
+      user.cart[existingID].newPrice =
+        user.cart[existingID].info.price * user.cart[existingID].quantity;
+
+      await user.save();
+      return res.status(200).json({
+        cart: {
+          id,
+          info: user.cart[existingID].info,
+          quantity: user.cart[existingID].quantity,
+          newPrice: user.cart[existingID].newPrice,
+          images: user.cart[existingID].images,
+        },
+        message: "Quantity updated in your cart",
+      });
+    }
+
+    let itemInfo = await Pet.findById(id);
+
+    if (itemInfo) {
+      images = itemInfo.imgPet[0];
+      displayInfo = {
+        name: itemInfo.namePet,
+        quantity: itemInfo.quantity,
+        price: itemInfo.price,
+      };
+    }
+
+    if (!itemInfo) {
+      itemInfo = await Product.findById(id);
+      images = itemInfo.images[0];
+      displayInfo = {
+        name: itemInfo.nameProduct,
+        quantity: itemInfo.quantity,
+        price: itemInfo.price,
+      };
+    }
+
+    if (!itemInfo) {
+      return res.status(404).json({
+        message: "Item not found in Pet or Product collections",
+      });
+    }
+
+    const newPrice = itemInfo.price * quantity;
+
+    const newItem = {
+      id,
+      info: displayInfo,
+      quantity,
+      newPrice: newPrice,
+      images,
+    };
+
+    user.cart.push({
+      id,
+      info: displayInfo,
+      quantity,
+      newPrice: newPrice,
+      images,
+    });
+    await user.save();
+    res.status(201).json({
+      message: "Successfully added to your cart",
+      cart: newItem,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "An error occurred" });
+  }
+});
+
+const deleteCart = async (req, res) => {
+  const { _id } = req.user;
+  const { id } = req.body;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const existingID = user.cart.findIndex((item) => item.id.toString() === id);
+    if (existingID === -1) {
+      return res.status(404).json({
+        message: "Item not found in your cart",
+      });
+    }
+    user.cart.splice(existingID, 1);
+    await user.save();
+
+    return res.status(200).json({
+      message: "Item removed from your cart",
+      data: user.cart,
+    });
+  } catch (error) {
+    console.error("Error while removing item from cart:", error);
+    return res.status(500).json({
+      message: "An error occurred while removing item from the cart",
+      error: error.message,
+    });
+  }
+};
+
+const deleteAllCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.cart = [];
+
+    await user.save();
+
+    res.status(200).json({
+      message: "All items removed from your cart",
+      data: user.cart,
+    });
+  } catch (error) {
+    console.error("Error while deleting all items in cart:", error.message);
+    res.status(500).json({
+      message: "An error occurred while deleting all items in the cart",
+      error: error.message,
+    });
+  }
+});
+
 const addAddress = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { address } = req.body;
@@ -609,4 +762,7 @@ module.exports = {
   addAddress,
   deleteAddress,
   changePassword,
+  shoppingCart,
+  deleteCart,
+  deleteAllCart,
 };

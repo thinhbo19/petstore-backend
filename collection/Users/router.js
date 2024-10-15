@@ -44,6 +44,11 @@ router.put(
   [verifyAccessToken],
   UserControls.addFavoriteProduct
 );
+// cart
+router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
+router.delete("/allCart", [verifyAccessToken], UserControls.deleteAllCart);
+router.delete("/allOneCart", [verifyAccessToken], UserControls.deleteCart);
+
 router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 
 //address
