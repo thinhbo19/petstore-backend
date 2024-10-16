@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const sendMail = require("../../utils/sendMail");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const { generateSlug } = require("../../service/slugifyConfig");
 
 const register = asyncHandler(async (req, res) => {
   try {
@@ -589,6 +590,11 @@ const shoppingCart = asyncHandler(async (req, res) => {
         name: itemInfo.namePet,
         quantity: itemInfo.quantity,
         price: itemInfo.price,
+        slug: `/shop/${generateSlug(
+          itemInfo.petBreed.nameSpecies
+        )}/${generateSlug(itemInfo.petBreed.nameBreed)}/${generateSlug(
+          itemInfo.namePet
+        )}`,
       };
     }
 
@@ -599,6 +605,9 @@ const shoppingCart = asyncHandler(async (req, res) => {
         name: itemInfo.nameProduct,
         quantity: itemInfo.quantity,
         price: itemInfo.price,
+        slug: `/accessory/${generateSlug(
+          itemInfo.category.nameCate
+        )}/${generateSlug(itemInfo.nameProduct)}`,
       };
     }
 
