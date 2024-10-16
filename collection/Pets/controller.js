@@ -12,7 +12,6 @@ const formatString = (input) => {
 
   return formattedWords.join(" ");
 };
-
 const createNewPets = asyncHandler(async (req, res) => {
   try {
     const {
