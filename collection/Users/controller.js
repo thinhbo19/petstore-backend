@@ -11,6 +11,9 @@ const sendMail = require("../../utils/sendMail");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { generateSlug } = require("../../service/slugifyConfig");
+const {
+  generateActivationEmail,
+} = require("../../service/emailTemplateService");
 
 const register = asyncHandler(async (req, res) => {
   try {
@@ -44,9 +47,10 @@ const register = asyncHandler(async (req, res) => {
         isBlocked: true,
       });
       const activationUrl = `${process.env.URL_CLIENT}/activate-account/${newUser._id}`;
-      const html = `Xin vui lòng click vào link dưới đây để kích hoạt tài khoản của bạn: <a href="${activationUrl}">Click Here</a>`;
+      const html = generateActivationEmail(username, activationUrl);
       const data = {
         email: email,
+        subject: "Activate Your Account",
         html,
       };
       await sendMail(data);
