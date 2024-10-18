@@ -8,17 +8,9 @@ router.post(
   TypeServiceControll.createService
 );
 
-router.get(
-  "/",
-  [verifyAccessToken, isAdmin],
-  TypeServiceControll.getAllServices
-);
+router.get("/", TypeServiceControll.getAllServices);
 
-router.get(
-  "/:serviceID",
-  [verifyAccessToken, isAdmin],
-  TypeServiceControll.getServiceById
-);
+router.get("/:serviceID", TypeServiceControll.getServiceById);
 
 router.put(
   "/change/:serviceID",
