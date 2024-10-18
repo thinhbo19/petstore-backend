@@ -40,6 +40,7 @@ const createProduct = asyncHandler(async (req, res) => {
       price,
       description,
       images,
+      sold: false,
     });
 
     await newProduct.save();
@@ -90,7 +91,13 @@ const changeProduct = asyncHandler(async (req, res) => {
 
     const update = await Product.findByIdAndUpdate(
       productId,
-      { nameProduct, quantity, price, description },
+      {
+        nameProduct,
+        quantity,
+        price,
+        description,
+        sold: quantity > 0 ? false : true,
+      },
       { new: true }
     );
     if (!update) {

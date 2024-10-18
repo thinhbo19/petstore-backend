@@ -95,6 +95,14 @@ const changePets = asyncHandler(async (req, res) => {
       characteristic,
     } = req.body;
 
+    const pet = await Pets.findById(pid);
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: "Can not find pet!",
+      });
+    }
+
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
       {
@@ -107,14 +115,11 @@ const changePets = asyncHandler(async (req, res) => {
         deworming: deworming,
         vaccination: vaccination,
         characteristic: characteristic,
+        sold: quantity > 0 ? false : true, // Cập nhật sold dựa trên số lượng
       },
       { new: true }
     );
-    if (!updatePets) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Can not find pets!!!" });
-    }
+
     return res.status(200).json({
       success: true,
       message: updatePets,
@@ -122,7 +127,7 @@ const changePets = asyncHandler(async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Error update.",
+      message: "Error updating pet.",
     });
   }
 });

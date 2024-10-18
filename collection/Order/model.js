@@ -4,29 +4,13 @@ var OrderSchema = new mongoose.Schema(
   {
     products: [
       {
-        product: {
-          type: mongoose.Types.ObjectId,
-          ref: "Product",
-        },
+        id: { type: mongoose.Types.ObjectId },
         count: { type: Number },
         price: { type: Number },
         img: { type: String },
         name: { type: String },
       },
     ],
-    pets: [
-      {
-        pet: {
-          type: mongoose.Types.ObjectId,
-          ref: "Pets",
-        },
-        count: { type: Number },
-        price: { type: Number },
-        img: { type: String },
-        name: { type: String },
-      },
-    ],
-
     totalPrice: {
       type: Number,
     },
@@ -34,6 +18,11 @@ var OrderSchema = new mongoose.Schema(
       type: String,
       default: "Processing",
       enum: ["Cancelled", "Processing", "Shipping", "Success"],
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["PayPal", "VNPay", "PaymentDelivery"],
     },
 
     coupon: {

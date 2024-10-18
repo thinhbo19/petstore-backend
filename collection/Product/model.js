@@ -15,6 +15,10 @@ var productSchema = new mongoose.Schema({
   price: { type: Number },
   description: { type: String },
   images: { type: Array },
+  sold: {
+    type: Boolean,
+    default: false,
+  },
   rating: [
     {
       postBy: { type: mongoose.Schema.ObjectId, ref: "User", require: true },
