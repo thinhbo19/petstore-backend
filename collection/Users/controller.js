@@ -383,7 +383,6 @@ const updateUserByUser = asyncHandler(async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 });
-
 const blockAccount = asyncHandler(async (req, res) => {
   try {
     const { userId, isBlocked } = req.body;
@@ -549,7 +548,6 @@ const getFavorites = asyncHandler(async (req, res) => {
       .json({ message: "An error occurred while fetching favorites" });
   }
 });
-
 const shoppingCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { id, quantity } = req.body;
@@ -648,7 +646,6 @@ const shoppingCart = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred" });
   }
 });
-
 const deleteCart = async (req, res) => {
   const { _id } = req.user;
   const { id } = req.body;
@@ -680,7 +677,6 @@ const deleteCart = async (req, res) => {
     });
   }
 };
-
 const deleteAllCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
 
@@ -707,7 +703,6 @@ const deleteAllCart = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const addAddress = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { address } = req.body;
