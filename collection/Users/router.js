@@ -47,7 +47,7 @@ router.put(
 // cart
 router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
 router.delete("/allCart", [verifyAccessToken], UserControls.deleteAllCart);
-router.delete("/allOneCart", [verifyAccessToken], UserControls.deleteCart);
+router.delete("/allOneCart", UserControls.deleteCart);
 
 router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 

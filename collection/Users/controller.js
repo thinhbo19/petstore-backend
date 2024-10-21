@@ -647,11 +647,10 @@ const shoppingCart = asyncHandler(async (req, res) => {
   }
 });
 const deleteCart = async (req, res) => {
-  const { _id } = req.user;
-  const { id } = req.body;
+  const { id, userID } = req.body;
 
   try {
-    const user = await User.findById(_id);
+    const user = await User.findById(userID);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
