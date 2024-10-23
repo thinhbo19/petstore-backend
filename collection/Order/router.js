@@ -17,5 +17,7 @@ router.patch(
   [verifyAccessToken],
   OrderControl.updateStatusOrder
 );
+router.post("/createUrl", OrderControl.handlePaymentUrl);
+router.get("/vnpay_return", OrderControl.handleVnPayReturn);
 
 module.exports = router;
