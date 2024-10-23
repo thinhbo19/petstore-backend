@@ -1,8 +1,9 @@
 const Order = require("./model");
 const Product = require("../Product/model");
 const Pet = require("../Pets/model");
+const User = require("../Users/model");
+const orderService = require("../../service/orderService");
 const asyncHandler = require("express-async-handler");
-const { default: orderService } = require("../../service/orderService");
 const moment = require("moment");
 const querystring = require("qs");
 const crypto = require("crypto");
@@ -257,23 +258,18 @@ const updateStatusOrder = asyncHandler(async (req, res) => {
 
 const handlePaymentUrl = asyncHandler(async (req, res) => {
   try {
-    const {
-      orderBy,
-      products,
-      coupon,
-      note,
-      address,
-      paymentMethod,
-      totalPrice,
-    } = req.body;
+    const { orderBy, products, coupon, note, address, paymentMethod } =
+      req.body;
+
+    const priceTotal = await orderService.returnTotalPrice({ products });
 
     inforOrder.orderBy = orderBy;
-    inforOrder.coupon = coupon || " ";
+    inforOrder.coupon = coupon || null;
     inforOrder.note = note;
     inforOrder.address = address;
     inforOrder.status = "Processing";
     inforOrder.paymentMethod = paymentMethod;
-    inforOrder.totalPrice = totalPrice;
+    inforOrder.totalPrice = priceTotal;
     inforOrder.products = products;
 
     var ipAddr =
@@ -290,7 +286,7 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     var date = new Date();
 
     var createDate = moment(date).format("YYYYMMDDHHmmss");
-    const amount = totalPrice;
+    const amount = priceTotal;
     var bankCode = req.body.bankCode || "";
     let vnp_TxnRef = createDate;
 
@@ -351,18 +347,23 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
     if (secureHash === signed) {
       const message = await orderService.createOrderService({
         ...inforOrder,
-        totalPrice: vnp_Params.vnp_Amount / 100,
       });
 
-      for (const product of inforOrder.products) {
-        await updateSizeProduct({
-          name: product.name,
-          size: product.size,
-          numberOfSize: product.count,
-        });
-      }
-
       if (message) {
+        const userId = message.OrderBy;
+        const user = await User.findById(userId);
+        const userCart = user.cart;
+        const updatedCartProducts = userCart.filter((cartItem) => {
+          return !message.products.some((orderItem) => {
+            return (
+              cartItem.id.equals(orderItem.id) &&
+              cartItem.quantity === orderItem.count
+            );
+          });
+        });
+        user.cart = updatedCartProducts;
+        await user.save();
+
         return res.redirect(
           `${process.env.URL_CLIENT}/order-detail/${message._id}`
         );

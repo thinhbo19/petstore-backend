@@ -18,6 +18,6 @@ router.patch(
   OrderControl.updateStatusOrder
 );
 router.post("/createUrl", OrderControl.handlePaymentUrl);
-router.get("/vnpay_return", OrderControl.handleVnPayReturn);
+router.get("/vnpay/vnpay_return", OrderControl.handleVnPayReturn);
 
 module.exports = router;

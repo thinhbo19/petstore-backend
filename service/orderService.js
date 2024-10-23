@@ -95,6 +95,46 @@ const createOrderService = async ({
   }
 };
 
+const returnTotalPrice = async ({ products }) => {
+  let totalPrice = 0;
+
+  for (let item of products) {
+    let product = await Product.findById(item.id);
+    if (product) {
+      if (!product.quantity || product.quantity <= 0 || product.sold === true) {
+        throw new Error(`Product ${product.nameProduct} is out of stock`);
+      }
+      if (item.count > product.quantity) {
+        throw new Error(
+          `Product ${product.nameProduct} has only ${product.quantity} items in stock`
+        );
+      }
+
+      totalPrice += product.price * item.count;
+    } else {
+      let pet = await Pet.findById(item.id);
+      if (pet) {
+        if (!pet.quantity || pet.quantity <= 0 || pet.sold === true) {
+          throw new Error(`Pet ${pet.namePet} is out of stock`);
+        }
+        if (item.count > pet.quantity) {
+          throw new Error(
+            `Pet ${pet.namePet} has only ${pet.quantity} items in stock`
+          );
+        }
+
+        totalPrice += pet.price * item.count;
+      } else {
+        throw new Error(
+          `Item with ID ${item.id} not found in products or pets`
+        );
+      }
+    }
+  }
+  return totalPrice;
+};
+
 module.exports = {
   createOrderService,
+  returnTotalPrice,
 };
