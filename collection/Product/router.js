@@ -2,6 +2,7 @@ const uploadCloud = require("../../middlewares/uploadimg");
 const router = require("express").Router();
 const productController = require("./controller");
 const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const prodpetSer = require("../../service/ProdAndPet");
 
 router.post(
   "/addProduct",
@@ -25,4 +26,11 @@ router.delete(
   [verifyAccessToken, isAdmin],
   productController.deleteProduct
 );
+router.get("/prodpets/:pid", prodpetSer.getData);
+router.post(
+  "/rating/:prodId",
+  uploadCloud.array("feedback_img"),
+  productController.postRating
+);
+
 module.exports = router;

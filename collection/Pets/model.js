@@ -34,7 +34,7 @@ var PetSchema = new mongoose.Schema({
       star: { type: Number, required: true, min: 1, max: 5 },
       comment: { type: String },
       dateComment: { type: Date, default: Date.now() },
-      feedback_img: { type: [String] },
+      feedback_img: { type: Array },
     },
   ],
 });

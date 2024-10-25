@@ -2,6 +2,7 @@ const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const Product = require("./model");
 const Category = require("../Category/model.js");
+const User = require("../Users/model");
 
 const formatString = (input) => {
   const words = input.split("-");
@@ -175,6 +176,81 @@ const findProductsByCategory = asyncHandler(async (req, res) => {
     });
   }
 });
+const postRating = asyncHandler(async (req, res) => {
+  try {
+    const { postBy, star, comment } = req.body;
+
+    const feedback_img = req.files.map((file) => file.path);
+
+    const { prodId } = req.params;
+
+    const prod = await Product.findById(prodId);
+    const user = await User.findById(postBy);
+
+    if (!prod) {
+      throw new Error("prod not found");
+    }
+    if (!user) {
+      throw new Error("user not found");
+    }
+    if (!postBy || !star || !comment) {
+      res.status(400);
+      throw new Error(
+        "Please provide complete information: postBy, star, comment."
+      );
+    }
+
+    if (star < 1 || star > 5) {
+      res.status(400);
+      throw new Error("The number of stars must be between 1 and 5.");
+    }
+
+    const existingRatingIndex = prod.rating.findIndex(
+      (r) => r.postBy.toString() === postBy
+    );
+    if (existingRatingIndex !== -1) {
+      // Cập nhật đánh giá nếu đã tồn tại
+      prod.rating[existingRatingIndex] = {
+        postBy,
+        username: user.username,
+        avatar: user.Avatar,
+        star,
+        comment,
+        dateComment: Date.now(),
+        feedback_img: feedback_img,
+      };
+    } else {
+      prod.rating.push({
+        postBy,
+        username: user.username,
+        avatar: user.Avatar,
+        star,
+        comment,
+        dateComment: Date.now(),
+        feedback_img: feedback_img,
+      });
+    }
+    await prod.save();
+    if (existingRatingIndex !== -1) {
+      res.status(200).json({
+        success: true,
+        message: "Rating updated successfully.",
+        prod,
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        message: "Rating added successfully.",
+        prod,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      mess: error.message,
+    });
+  }
+});
 
 module.exports = {
   createProduct,
@@ -184,4 +260,5 @@ module.exports = {
   getCurrentProduct,
   getCurrentProductByName,
   findProductsByCategory,
+  postRating,
 };
