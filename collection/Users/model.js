@@ -56,10 +56,6 @@ var userSchema = new mongoose.Schema(
           require: true,
           ref: "Voucher",
         },
-        nameVoucher: { type: String },
-        discount: { type: Number },
-        exclusive: { type: Number },
-        expiry: { type: Date },
       },
     ],
     favoritePets: [
