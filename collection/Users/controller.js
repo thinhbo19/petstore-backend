@@ -1,6 +1,7 @@
 const User = require("./model");
 const Pet = require("../Pets/model");
 const Product = require("../Product/model");
+const Voucher = require("../Voucher/model");
 const asyncHandler = require("express-async-handler");
 const {
   generateAccessToken,
@@ -747,6 +748,45 @@ const deleteAddress = async (req, res) => {
       .json({ message: "An error occurred while deleting address" });
   }
 };
+const addVoucher = asyncHandler(async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const { voucherId } = req.body;
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const existingVoucher = user.Voucher.find(
+      (voucher) => voucher.voucherID.toString() === voucherId
+    );
+    if (existingVoucher) {
+      return res
+        .status(400)
+        .json({ message: "Voucher already exists for this user." });
+    }
+    user.Voucher.push({ voucherID: voucherId });
+    await user.save();
+    return res.status(200).json({ message: "Voucher added successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "An error" });
+  }
+});
+const getVouchers = asyncHandler(async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const user = await User.findById(_id).populate("Voucher.voucherID");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const vouchers = user.Voucher.map((voucher) => voucher.voucherID);
+    return res.status(200).json({ vouchers });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "An error occurred while retrieving the vouchers." });
+  }
+});
 
 module.exports = {
   register,
@@ -772,4 +812,6 @@ module.exports = {
   shoppingCart,
   deleteCart,
   deleteAllCart,
+  addVoucher,
+  getVouchers,
 };

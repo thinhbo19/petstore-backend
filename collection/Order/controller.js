@@ -2,6 +2,7 @@ const Order = require("./model");
 const Product = require("../Product/model");
 const Pet = require("../Pets/model");
 const User = require("../Users/model");
+const Voucher = require("../Voucher/model");
 const orderService = require("../../service/orderService");
 const asyncHandler = require("express-async-handler");
 const moment = require("moment");
@@ -85,6 +86,30 @@ const createOrder = asyncHandler(async (req, res) => {
             message: `Item with ID ${item.id} not found in products or pets`,
           });
         }
+      }
+    }
+
+    if (coupon) {
+      const user = await User.findById(orderBy).populate("Voucher.voucherID");
+      const userVouchers = user.Voucher.map((v) => v.voucherID);
+      const res = userVouchers.find((v) => v._id.equals(coupon));
+
+      if (res) {
+        const voucher = await Voucher.findById(coupon);
+        if (voucher) {
+          const discountAmount = (totalPrice * voucher.discount) / 100;
+          totalPrice = Math.max(0, totalPrice - discountAmount);
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: "Coupon not found",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Coupon not valid for this user",
+        });
       }
     }
 

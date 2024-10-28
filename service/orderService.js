@@ -1,6 +1,8 @@
 const Order = require("../collection/Order/model");
 const Product = require("../collection/Product/model");
 const Pet = require("../collection/Pets/model");
+const User = require("../collection/Users/model");
+const Voucher = require("../collection/Voucher/model");
 
 const createOrderService = async ({
   products,
@@ -52,6 +54,30 @@ const createOrderService = async ({
             `Item with ID ${item.id} not found in products or pets`
           );
         }
+      }
+    }
+
+    if (coupon) {
+      const user = await User.findById(req.user._id).populate(
+        "Voucher.voucherID"
+      );
+      const userVouchers = user.Voucher.map((v) => v.voucherID.toString());
+
+      if (userVouchers.includes(coupon)) {
+        const voucher = await Voucher.findById(coupon);
+        if (voucher) {
+          totalPrice -= (totalPrice * voucher.discount) / 100;
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: "Coupon not found",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Coupon not valid for this user",
+        });
       }
     }
 
