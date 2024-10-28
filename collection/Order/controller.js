@@ -218,6 +218,11 @@ const getOneOrder = asyncHandler(async (req, res) => {
   try {
     const orders = await Order.findById(orderID)
       .populate("OrderBy", "username email mobile")
+      .populate({
+        path: "coupon",
+        model: "Voucher",
+        select: "nameVoucher",
+      })
       .exec();
 
     if (!orders) {
@@ -243,10 +248,14 @@ const getUserOrder = asyncHandler(async (req, res) => {
   const { userID } = req.params;
 
   try {
-    const orders = await Order.find({ OrderBy: userID }).populate(
-      "OrderBy",
-      "username email mobile"
-    );
+    const orders = await Order.find({ OrderBy: userID })
+      .populate("OrderBy", "username email mobile")
+      .populate({
+        path: "coupon",
+        model: "Voucher",
+        select: "nameVoucher",
+      })
+      .exec();
 
     if (!orders) {
       return res.status(404).json({
@@ -280,7 +289,6 @@ const updateStatusOrder = asyncHandler(async (req, res) => {
     response: response ? response : "false",
   });
 });
-
 const handlePaymentUrl = asyncHandler(async (req, res) => {
   try {
     const { orderBy, products, coupon, note, address, paymentMethod } =
@@ -354,7 +362,6 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const handleVnPayReturn = asyncHandler(async (req, res) => {
   try {
     let vnp_Params = req.query;
