@@ -60,5 +60,7 @@ router.delete(
 );
 
 router.put("/change-password", UserControls.changePassword);
+router.put("/add-voucher", [verifyAccessToken], UserControls.addVoucher);
+router.get("/vouchers", [verifyAccessToken], UserControls.getVouchers);
 
 module.exports = router;
