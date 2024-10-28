@@ -1,20 +1,20 @@
 const Voucher = require("./model");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
+const moment = require("moment");
 
 const addVoucher = asyncHandler(async (req, res) => {
   try {
+    const time = 24 * 60 * 60 * 1000;
     const { nameVoucher, discount, exclusive, expiry } = req.body;
 
-    // Tạo một voucher mới
     const newVoucher = new Voucher({
       nameVoucher,
       discount,
       exclusive,
-      expiry,
+      expiry: Date.now() + +expiry * time,
     });
 
-    // Lưu vào cơ sở dữ liệu
     await newVoucher.save();
 
     res.status(201).json({
@@ -30,11 +30,11 @@ const addVoucher = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const deleteVoucher = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Tìm và xóa voucher theo ID
     const deletedVoucher = await Voucher.findByIdAndDelete(id);
 
     if (!deletedVoucher) {
@@ -57,16 +57,22 @@ const deleteVoucher = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const updateVoucher = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const { nameVoucher, discount, exclusive, expiry } = req.body;
+    const time = 24 * 60 * 60 * 1000;
 
-    // Tìm và cập nhật voucher
     const updatedVoucher = await Voucher.findByIdAndUpdate(
       id,
-      { nameVoucher, discount, exclusive, expiry },
-      { new: true } // Để trả về object sau khi cập nhật
+      {
+        nameVoucher,
+        discount,
+        exclusive,
+        expiry: Date.now() + +expiry * time,
+      },
+      { new: true }
     );
 
     if (!updatedVoucher) {
@@ -89,12 +95,19 @@ const updateVoucher = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const getAllVouchers = asyncHandler(async (req, res) => {
   try {
     const vouchers = await Voucher.find();
+
+    const formattedVouchers = vouchers.map((voucher) => ({
+      ...voucher.toObject(),
+      expiry: moment(voucher.expiry).format("YYYY-MM-DD"),
+    }));
+
     res.status(200).json({
       success: true,
-      data: vouchers,
+      data: formattedVouchers,
     });
   } catch (error) {
     res.status(500).json({
@@ -104,6 +117,7 @@ const getAllVouchers = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const getVoucherById = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
@@ -119,7 +133,10 @@ const getVoucherById = asyncHandler(async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: voucher,
+      data: {
+        ...voucher.toObject(),
+        expiry: moment(voucher.expiry).format("YYYY-MM-DD"),
+      },
     });
   } catch (error) {
     res.status(500).json({
