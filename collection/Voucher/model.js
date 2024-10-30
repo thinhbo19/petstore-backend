@@ -10,6 +10,7 @@ var voucherSchema = new mongoose.Schema({
   typeVoucher: {
     type: String,
     required: true,
+    enum: ["Pets", "Accessory", "Ship"],
   },
   discount: {
     type: Number,
