@@ -6,10 +6,11 @@ const moment = require("moment");
 const addVoucher = asyncHandler(async (req, res) => {
   try {
     const time = 24 * 60 * 60 * 1000;
-    const { nameVoucher, discount, exclusive, expiry } = req.body;
+    const { nameVoucher, typeVoucher, discount, exclusive, expiry } = req.body;
 
     const newVoucher = new Voucher({
       nameVoucher,
+      typeVoucher,
       discount,
       exclusive,
       expiry: Date.now() + +expiry * time,
@@ -61,13 +62,14 @@ const deleteVoucher = asyncHandler(async (req, res) => {
 const updateVoucher = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const { nameVoucher, discount, exclusive, expiry } = req.body;
+    const { nameVoucher, typeVoucher, discount, exclusive, expiry } = req.body;
     const time = 24 * 60 * 60 * 1000;
 
     const updatedVoucher = await Voucher.findByIdAndUpdate(
       id,
       {
         nameVoucher,
+        typeVoucher,
         discount,
         exclusive,
         expiry: Date.now() + +expiry * time,
