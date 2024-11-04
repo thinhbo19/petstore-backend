@@ -7,6 +7,7 @@ var typeServiceSchema = new mongoose.Schema({
     unique: true,
     index: true,
   },
+  type: { type: String },
   description: { type: String },
   price: { type: Number },
 });

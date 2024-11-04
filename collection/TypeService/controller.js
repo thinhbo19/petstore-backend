@@ -3,7 +3,7 @@ const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 
 const createService = asyncHandler(async (req, res) => {
-  const { nameService, description, price } = req.body;
+  const { nameService, type, description, price } = req.body;
 
   try {
     const existingService = await TypeService.findOne({ nameService });
@@ -16,6 +16,7 @@ const createService = asyncHandler(async (req, res) => {
 
     const newService = await TypeService.create({
       nameService,
+      type,
       description,
       price,
     });
@@ -36,12 +37,12 @@ const createService = asyncHandler(async (req, res) => {
 
 const updateService = asyncHandler(async (req, res) => {
   const { serviceID } = req.params;
-  const { nameService, description, price } = req.body;
+  const { nameService, type, description, price } = req.body;
 
   try {
     const updatedService = await TypeService.findByIdAndUpdate(
       serviceID,
-      { nameService, description, price },
+      { nameService, type, description, price },
       { new: true }
     );
 
