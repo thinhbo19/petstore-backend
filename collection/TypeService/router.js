@@ -10,6 +10,9 @@ router.post(
 
 router.get("/", TypeServiceControll.getAllServices);
 
+router.get("/spa", TypeServiceControll.getAllSpaServices);
+router.get("/hotel", TypeServiceControll.getAllHotelServices);
+
 router.get("/:serviceID", TypeServiceControll.getServiceById);
 
 router.put(

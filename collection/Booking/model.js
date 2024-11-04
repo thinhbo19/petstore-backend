@@ -2,18 +2,16 @@ const mongoose = require("mongoose");
 
 var bookingSchema = new mongoose.Schema({
   user: {
-    userID: { type: mongoose.Types.ObjectId, ref: "User", require: true },
-    username: { type: String },
-    mobile: { type: String },
-    email: { type: String },
-    Avatar: { type: String, default: "" },
+    type: mongoose.Types.ObjectId,
+    ref: "User",
+    require: true,
   },
   pet: {
-    namePet: { type: String },
-    imgPet: { type: Array },
-    nameBreed: { type: String },
+    name: { type: String, required: true },
+    images: { type: Array },
+    breed: { type: String },
     age: { type: Number },
-    gender: { type: String },
+    gender: { type: String, enum: ["Male", "Female"] },
     deworming: { type: Number },
     vaccination: { type: Number },
   },
@@ -24,14 +22,15 @@ var bookingSchema = new mongoose.Schema({
         ref: "TypeService",
         require: true,
       },
-      nameService: { type: String },
-      description: { type: String },
-      price: { type: Number },
     },
   ],
-  bookingDate: { type: Date },
-  totalPrice: { type: Number },
-  status: { type: String, enum: ["Processing", "Completed", "Cancelled"] },
+  bookingDate: { type: Date, default: Date.now },
+  totalPrice: { type: Number, required: true },
+  status: {
+    type: String,
+    enum: ["Processing", "Completed", "Cancelled"],
+    default: "Processing",
+  },
 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

@@ -116,6 +116,52 @@ const getAllServices = asyncHandler(async (req, res) => {
   }
 });
 
+const getAllSpaServices = asyncHandler(async (req, res) => {
+  try {
+    const services = await TypeService.find({ type: "Spa" });
+    if (!services || services.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No services found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: services,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving services",
+      error: error.message,
+    });
+  }
+});
+
+const getAllHotelServices = asyncHandler(async (req, res) => {
+  try {
+    const services = await TypeService.find({ type: "Hotel" });
+    if (!services || services.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No services found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: services,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving services",
+      error: error.message,
+    });
+  }
+});
+
 const getServiceById = asyncHandler(async (req, res) => {
   const { serviceID } = req.params;
 
@@ -146,5 +192,7 @@ module.exports = {
   updateService,
   deleteService,
   getAllServices,
+  getAllSpaServices,
+  getAllHotelServices,
   getServiceById,
 };
