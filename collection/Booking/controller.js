@@ -37,12 +37,16 @@ const createBooking = asyncHandler(async (req, res) => {
       totalPrice,
       paymentMethod,
     } = req.body;
+    const images = req.files.map((file) => file.path);
 
     const newBooking = await Booking.create({
       user,
-      pet,
+      pet: {
+        ...pet,
+        images,
+      },
       services,
-      voucher,
+      voucher: voucher || null,
       Note,
       bookingDate,
       totalPrice,
