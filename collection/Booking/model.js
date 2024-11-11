@@ -32,6 +32,10 @@ var bookingSchema = new mongoose.Schema({
   bookingDate: { type: Date },
   realDate: { type: Date, default: Date.now },
   totalPrice: { type: Number, required: true },
+  paymentMethod: {
+    type: String,
+    enum: ["PayPal", "VNPay", "PaymentDelivery"],
+  },
   status: {
     type: String,
     enum: ["Processing", "Completed", "Cancelled"],
