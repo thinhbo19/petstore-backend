@@ -17,13 +17,18 @@ var bookingSchema = new mongoose.Schema({
   },
   services: [
     {
-      serviceID: {
-        type: mongoose.Schema.ObjectId,
-        ref: "TypeService",
-        require: true,
-      },
+      type: mongoose.Schema.ObjectId,
+      ref: "TypeService",
+      require: true,
     },
   ],
+  voucher: {
+    type: mongoose.Schema.ObjectId,
+    ref: "Voucher",
+    require: true,
+  },
+
+  Note: { type: String },
   bookingDate: { type: Date },
   realDate: { type: Date, default: Date.now },
   totalPrice: { type: Number, required: true },

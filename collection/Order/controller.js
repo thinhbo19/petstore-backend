@@ -418,7 +418,68 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
   }
 });
 
+const hanldMoMoPay = asyncHandler(async (req, res) => {
+  try {
+    const partnerCode = process.env.MOMO_PARTNER_CODE;
+    const accessKey = process.env.MOMO_ACCESS_KEY;
+    const secretKey = process.env.MOMO_SECRET_KEY;
+    const redirectUrl = process.env.MOMO_REDIRECT_URL;
+    const returnUrl = process.env.MOMOPAY_RETURNURL;
 
+    const orderId = new Date().getTime();
+    const requestId = partnerCode + orderId;
+    const amount = "5000";
+    const orderInfo = "Thanh Toán Qua Ví MOMO";
+    const extraData = "";
+
+    const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${returnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=captureWallet`;
+
+    const signature = crypto
+      .createHmac("sha256", secretKey)
+      .update(rawSignature)
+      .digest("hex");
+
+    const requestBody = JSON.stringify({
+      partnerCode,
+      accessKey,
+      requestId,
+      amount,
+      orderId,
+      orderInfo,
+      redirectUrl,
+      ipnUrl: returnUrl,
+      extraData,
+      requestType: "captureWallet",
+      signature,
+      lang: "en",
+    });
+
+    const response = await fetch(
+      "https://test-payment.momo.vn/v2/gateway/api/create",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      }
+    );
+
+    const data = await response.json();
+
+    if (data && data.payUrl) {
+      return res.status(200).json({ success: true, payUrl: data.payUrl });
+    } else {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to create MoMo payment URL" });
+    }
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
+  }
+});
 
 module.exports = {
   createOrder,
