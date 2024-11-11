@@ -418,6 +418,8 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
   }
 });
 
+
+
 module.exports = {
   createOrder,
   getAllOrders,
@@ -427,4 +429,5 @@ module.exports = {
   updateStatusOrder,
   handlePaymentUrl,
   handleVnPayReturn,
+  hanldMoMoPay,
 };

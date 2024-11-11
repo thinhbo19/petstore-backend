@@ -24,7 +24,8 @@ var bookingSchema = new mongoose.Schema({
       },
     },
   ],
-  bookingDate: { type: Date, default: Date.now },
+  bookingDate: { type: Date },
+  realDate: { type: Date, default: Date.now },
   totalPrice: { type: Number, required: true },
   status: {
     type: String,

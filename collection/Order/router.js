@@ -20,4 +20,6 @@ router.patch(
 router.post("/createUrl", OrderControl.handlePaymentUrl);
 router.get("/vnpay/vnpay_return", OrderControl.handleVnPayReturn);
 
+router.post("/momopay", OrderControl.hanldMoMoPay);
+
 module.exports = router;
