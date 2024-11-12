@@ -195,9 +195,13 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       totalPrice,
       paymentMethod,
     } = req.body;
+    const images = req.files.map((file) => file.path);
 
     inforOrder.user = user;
-    inforOrder.pet = pet;
+    inforOrder.pet = {
+      ...pet,
+      images,
+    };
     inforOrder.services = services;
     inforOrder.voucher = voucher || null;
     inforOrder.note = Note;

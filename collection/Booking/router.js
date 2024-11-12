@@ -13,7 +13,11 @@ router.delete(
   BookingControll.deleteBooking
 );
 
-router.post("/createUrl", BookingControll.handlePaymentUrl);
+router.post(
+  "/createUrl",
+  uploadCloud.array("images"),
+  BookingControll.handlePaymentUrl
+);
 router.get("/vnpay/vnpay_return", BookingControll.handleVnPayReturn);
 
 module.exports = router;
