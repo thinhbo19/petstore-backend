@@ -5,7 +5,12 @@ const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post("/", uploadCloud.array("images"), BookingControll.createBooking);
 router.get("/", BookingControll.getAllBookings);
-router.get("/:id", BookingControll.getBookingById);
+router.get("/:id", [verifyAccessToken], BookingControll.getBookingById);
+router.get(
+  "/user/:userID",
+  [verifyAccessToken],
+  BookingControll.getUserBooking
+);
 router.put("/status/:id", BookingControll.updateBookingStatus);
 router.delete(
   "/:id",

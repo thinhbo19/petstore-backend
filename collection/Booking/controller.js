@@ -71,10 +71,10 @@ const getBookingById = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const booking = await Booking.findById(id)
-      .populate("user", "username email")
+      .populate("user", "username email mobile")
       .populate({
         path: "services",
-        select: "nameService type description price",
+        select: "nameService type description price rating",
       })
       .populate({
         path: "voucher",
@@ -103,10 +103,10 @@ const getBookingById = asyncHandler(async (req, res) => {
 const getAllBookings = asyncHandler(async (req, res) => {
   try {
     const bookings = await Booking.find()
-      .populate("user", "name email")
+      .populate("user", "username email mobile")
       .populate({
         path: "services",
-        select: "nameService type description price",
+        select: "nameService type description price rating",
       })
       .populate({
         path: "voucher",
@@ -120,6 +120,43 @@ const getAllBookings = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch bookings",
+      error: error.message,
+    });
+  }
+});
+
+const getUserBooking = asyncHandler(async (req, res) => {
+  const { userID } = req.params;
+
+  try {
+    const orders = await Booking.find({ user: userID })
+      .populate("user", "username email mobile")
+      // .populate({
+      //   path: "coupon",
+      //   model: "Voucher",
+      //   select: "nameVoucher",
+      // })
+      .populate({
+        path: "services",
+        select: "nameService type description price rating",
+      })
+      .exec();
+
+    if (!orders) {
+      return res.status(404).json({
+        success: false,
+        message: "No order found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: orders,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving orders",
       error: error.message,
     });
   }
@@ -313,6 +350,7 @@ module.exports = {
   createBooking,
   getBookingById,
   getAllBookings,
+  getUserBooking,
   updateBookingStatus,
   deleteBooking,
   handlePaymentUrl,

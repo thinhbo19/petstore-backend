@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 const TypeServiceControll = require("./controller");
+const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post(
   "/",
@@ -25,6 +26,12 @@ router.delete(
   "/:serviceID",
   [verifyAccessToken, isAdmin],
   TypeServiceControll.deleteService
+);
+
+router.post(
+  "/rating/:serId",
+  uploadCloud.array("feedback_img"),
+  TypeServiceControll.postRating
 );
 
 module.exports = router;

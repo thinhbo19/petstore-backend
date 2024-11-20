@@ -38,7 +38,7 @@ var bookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Processing", "Completed", "Cancelled"],
+    enum: ["Processing", "Confirmed", "Completed", "Cancelled"],
     default: "Processing",
   },
 });
