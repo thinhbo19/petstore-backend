@@ -34,4 +34,6 @@ router.post(
   TypeServiceControll.postRating
 );
 
+router.get("/ratings/:type", TypeServiceControll.getRatingsByType);
+
 module.exports = router;

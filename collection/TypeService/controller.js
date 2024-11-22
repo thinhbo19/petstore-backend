@@ -304,6 +304,31 @@ const deleteRating = asyncHandler(async (req, res) => {
   }
 });
 
+const getRatingsByType = asyncHandler(async (req, res) => {
+  const { type } = req.params;
+  try {
+    const services = await TypeService.find({ type })
+      .select("nameService rating")
+      .populate("rating.postBy", "username Avatar");
+
+    if (!services || services.length === 0) {
+      return res
+        .status(404)
+        .json({ message: `No service found for type: ${type}` });
+    }
+
+    const ratings = services
+      .flatMap((service) => service.rating)
+      .sort((a, b) => new Date(b.dateComment) - new Date(a.dateComment))
+      .slice(0, 18);
+
+    res.status(200).json({ ratings });
+  } catch (error) {
+    console.error(`Error fetching ratings for type "${type}":`, error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = {
   createService,
   updateService,
@@ -314,4 +339,5 @@ module.exports = {
   getServiceById,
   postRating,
   deleteRating,
+  getRatingsByType,
 };
