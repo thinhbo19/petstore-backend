@@ -8,6 +8,8 @@ const asyncHandler = require("express-async-handler");
 const moment = require("moment");
 const querystring = require("qs");
 const crypto = require("crypto");
+const { generateOrderConfirmationEmail } = require("../../service/emailOrder");
+const sendMailOrder = require("../../utils/sendMailOrderjs");
 require("dotenv").config();
 
 function sortObject(obj) {
@@ -148,7 +150,20 @@ const createOrder = asyncHandler(async (req, res) => {
         message: "Failed to create order",
       });
     }
+    const user = await User.findById(orderBy);
+    const html = generateOrderConfirmationEmail(
+      user.username,
+      newOrder._id,
+      newOrder.products,
+      newOrder.totalPrice
+    );
 
+    const data = {
+      email: user.email,
+      subject: "You have just placed an order successfully",
+      html,
+    };
+    await sendMailOrder(data);
     return res.status(201).json({
       success: true,
       message: "Order created successfully",
@@ -396,6 +411,20 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         user.cart = updatedCartProducts;
         await user.save();
 
+        const html = generateOrderConfirmationEmail(
+          user.username,
+          message._id,
+          message.products,
+          message.totalPrice
+        );
+
+        const data = {
+          email: user.email,
+          subject: "You have just placed an order successfully",
+          html,
+        };
+
+        await sendMailOrder(data);
         return res.redirect(
           `${process.env.URL_CLIENT}/order-detail/${message._id}`
         );
