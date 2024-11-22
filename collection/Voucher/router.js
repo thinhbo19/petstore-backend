@@ -14,5 +14,6 @@ router.put(
   voucherController.updateVoucher
 );
 router.get("/", voucherController.getAllVouchers);
+router.get("/client", voucherController.getVouchersForClient);
 router.get("/:id", voucherController.getVoucherById);
 module.exports = router;

@@ -778,8 +778,15 @@ const getVouchers = asyncHandler(async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const vouchers = user.Voucher.map((voucher) => voucher.voucherID);
-    return res.status(200).json({ vouchers });
+
+    const currentDate = new Date();
+
+    const validVouchers = user.Voucher.filter((voucher) => {
+      const voucherExpiry = voucher.voucherID.expiry;
+      return voucherExpiry && voucherExpiry > currentDate; // So sánh ngày expiry với ngày hiện tại
+    }).map((voucher) => voucher.voucherID);
+
+    return res.status(200).json({ vouchers: validVouchers });
   } catch (error) {
     console.error(error);
     return res

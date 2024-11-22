@@ -65,29 +65,34 @@ const updateVoucher = asyncHandler(async (req, res) => {
     const { nameVoucher, typeVoucher, discount, exclusive, expiry } = req.body;
     const time = 24 * 60 * 60 * 1000;
 
-    const updatedVoucher = await Voucher.findByIdAndUpdate(
-      id,
-      {
-        nameVoucher,
-        typeVoucher,
-        discount,
-        exclusive,
-        expiry: Date.now() + +expiry * time,
-      },
-      { new: true }
-    );
+    const newExpiry = Date.now() + +expiry * time;
 
-    if (!updatedVoucher) {
+    const voucher = await Voucher.findById(id);
+    if (!voucher) {
       return res.status(404).json({
         success: false,
         message: "Voucher not found",
       });
     }
 
+    voucher.nameVoucher = nameVoucher || voucher.nameVoucher;
+    voucher.typeVoucher = typeVoucher || voucher.typeVoucher;
+    voucher.discount = discount || voucher.discount;
+    voucher.exclusive = exclusive || voucher.exclusive;
+    voucher.expiry = newExpiry;
+
+    if (new Date(voucher.expiry) < new Date()) {
+      voucher.status = true;
+    } else {
+      voucher.status = false;
+    }
+
+    await voucher.save();
+
     res.status(200).json({
       success: true,
       message: "Voucher updated successfully!",
-      data: updatedVoucher,
+      data: voucher,
     });
   } catch (error) {
     res.status(500).json({
@@ -102,8 +107,46 @@ const getAllVouchers = asyncHandler(async (req, res) => {
   try {
     const vouchers = await Voucher.find();
 
+    const updatedVouchers = await Promise.all(
+      vouchers.map(async (voucher) => {
+        if (new Date(voucher.expiry) < new Date() && voucher.status === false) {
+          voucher.status = true;
+          await voucher.save();
+        }
+        return {
+          ...voucher.toObject(),
+          expiry: moment(voucher.expiry).format("YYYY-MM-DD"),
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      data: updatedVouchers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching vouchers",
+      error: error.message,
+    });
+  }
+});
+
+const getVouchersForClient = asyncHandler(async (req, res) => {
+  try {
+    const currentDate = new Date();
+    const vouchers = await Voucher.find({
+      expiry: { $gte: currentDate },
+      status: false,
+    });
+
     const formattedVouchers = vouchers.map((voucher) => ({
-      ...voucher.toObject(),
+      _id: voucher._id,
+      nameVoucher: voucher.nameVoucher,
+      typeVoucher: voucher.typeVoucher,
+      discount: voucher.discount,
+      exclusive: voucher.exclusive,
       expiry: moment(voucher.expiry).format("YYYY-MM-DD"),
     }));
 
@@ -133,6 +176,11 @@ const getVoucherById = asyncHandler(async (req, res) => {
       });
     }
 
+    if (new Date(voucher.expiry) < new Date() && voucher.status === false) {
+      voucher.status = true;
+      await voucher.save();
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -155,4 +203,5 @@ module.exports = {
   updateVoucher,
   getAllVouchers,
   getVoucherById,
+  getVouchersForClient,
 };

@@ -10,7 +10,7 @@ var voucherSchema = new mongoose.Schema({
   typeVoucher: {
     type: String,
     required: true,
-    enum: ["Pets", "Accessory", "Ship"],
+    enum: ["Pet", "Accessory", "Booking", "Ship"],
   },
   discount: {
     type: Number,
@@ -23,6 +23,10 @@ var voucherSchema = new mongoose.Schema({
   expiry: {
     type: Date,
     required: true,
+  },
+  status: {
+    type: Boolean,
+    default: false,
   },
 });
 
