@@ -34,33 +34,98 @@ const generateOrderConfirmationEmail = (
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Order Confirmation</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: 'Arial', sans-serif;
+              background-color: #f7f7f7;
+              color: #333;
+            }
+            .email-wrapper {
+              max-width: 600px;
+              width: 100%;
+              margin: 0 auto;
+              background-color: white;
+              border-radius: 10px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+              font-size: 16px;
+            }
+            .email-header {
+              background-color: #FF6F61;
+              padding: 20px;
+              text-align: center;
+              color: white;
+            }
+            .email-header h1 {
+              margin: 0;
+              font-size: 24px;
+            }
+            .email-body {
+              padding: 20px;
+            }
+            .email-body h2 {
+              font-size: 22px;
+              color: #FF6F61;
+              text-align: center;
+            }
+            .email-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+              font-size: 16px;
+              word-break: break-word;
+            }
+            .email-table th, .email-table td {
+              padding: 8px;
+              border-bottom: 1px solid #ddd;
+            }
+            .email-table th {
+              text-align: left;
+              border-bottom: 2px solid #ddd;
+            }
+            .email-footer {
+              background-color: #f7f7f7;
+              padding: 10px;
+              text-align: center;
+              font-size: 12px;
+              color: #999;
+            }
+            .email-button {
+              display: inline-block;
+              background-color: #FF6F61;
+              color: white;
+              padding: 12px 24px;
+              text-decoration: none;
+              border-radius: 8px;
+              font-size: 16px;
+              max-width: 80%;
+              word-break: break-word;
+            }
+          </style>
         </head>
-        <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f7f7f7; color: #333;">
-          <!-- Wrapper -->
-          <div style="max-width: 600px; width: 100%; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <body>
+          <div class="email-wrapper">
             <!-- Header -->
-            <div style="background-color: #FF6F61; padding: 20px; text-align: center; color: white;">
-              <h1 style="margin: 0; font-size: 24px;">🐾 Pet Shop</h1>
-              <p style="margin: 0; font-size: 16px;">Cảm ơn bạn đã tin tưởng và mua sắm tại cửa hàng của chúng tôi!</p>
+            <div class="email-header">
+              <h1>🐾 Pet Shop</h1>
+              <p>Cảm ơn bạn đã tin tưởng và mua sắm tại cửa hàng của chúng tôi!</p>
             </div>
             
             <!-- Main Content -->
-            <div style="padding: 20px;">
-              <h2 style="font-size: 22px; color: #FF6F61;">🎉 Đơn hàng đã được xác nhận!</h2>
-              <p style="font-size: 16px; line-height: 1.6;">
-                Chào <strong>${customerName}</strong>,
-              </p>
-              <p style="font-size: 16px; line-height: 1.6;">
-                Đơn hàng <strong>#${orderId}</strong> của bạn đã được đặt thành công. Dưới đây là thông tin chi tiết:
-              </p>
+            <div class="email-body">
+              <h2>🎉 Đơn hàng đã được xác nhận!</h2>
+              <p>Chào <strong>${customerName}</strong>,</p>
+              <p>Đơn hàng <strong>#${orderId}</strong> của bạn đã được đặt thành công. Dưới đây là thông tin chi tiết:</p>
     
               <!-- Order Summary Table -->
-              <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 16px;">
+              <table class="email-table">
                 <thead>
                   <tr>
-                    <th style="text-align: left; border-bottom: 2px solid #ddd; padding: 8px;">Sản phẩm</th>
-                    <th style="text-align: center; border-bottom: 2px solid #ddd; padding: 8px;">Số lượng</th>
-                    <th style="text-align: right; border-bottom: 2px solid #ddd; padding: 8px;">Giá</th>
+                    <th>Sản phẩm</th>
+                    <th style="text-align: center;">Số lượng</th>
+                    <th style="text-align: right;">Giá</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -76,16 +141,14 @@ const generateOrderConfirmationEmail = (
     
               <!-- Call to Action -->
               <div style="text-align: center; margin: 20px 0;">
-                <a href="${orderUrl}" style="background-color: #FF6F61; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-size: 16px;">
-                  Xem chi tiết đơn hàng
-                </a>
+                <a href="${orderUrl}" class="email-button">Xem chi tiết đơn hàng</a>
               </div>
             </div>
     
             <!-- Footer -->
-            <div style="background-color: #f7f7f7; padding: 10px; text-align: center; font-size: 12px; color: #999;">
-              <p style="margin: 0;">Pet Shop Inc, Địa chỉ: 1234 Đường yêu thú cưng, Thành phố Động vật</p>
-              <p style="margin: 0;">Cần hỗ trợ? <a href="#" style="color: #FF6F61; text-decoration: none;">Liên hệ với chúng tôi</a></p>
+            <div class="email-footer">
+              <p>Pet Shop Inc, Địa chỉ: 1234 Đường yêu thú cưng, Thành phố Động vật</p>
+              <p>Cần hỗ trợ? <a href="#" style="color: #FF6F61; text-decoration: none;">Liên hệ với chúng tôi</a></p>
             </div>
           </div>
         </body>
