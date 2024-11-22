@@ -1,4 +1,5 @@
 const Booking = require("./model");
+const TypeService = require("../TypeService/model");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const moment = require("moment");
@@ -346,6 +347,125 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
   }
 });
 
+const totalPriceBooking = asyncHandler(async (req, res) => {
+  try {
+    const bookings = await Booking.find();
+
+    if (!bookings || bookings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No bookings found",
+      });
+    }
+
+    const totalPrice = bookings.reduce((total, order) => {
+      return total + (order.totalPrice || 0);
+    }, 0);
+
+    res.status(200).json({
+      success: true,
+      message: "Total price for all bookings calculated successfully",
+      totalPrice,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error calculating total price for all bookings",
+      error: error.message,
+    });
+  }
+});
+
+const mostPurchasedService = asyncHandler(async (req, res) => {
+  try {
+    const servicesAggregation = await Booking.aggregate([
+      { $unwind: "$services" },
+      {
+        $group: {
+          _id: "$services",
+          totalPurchased: { $sum: 1 },
+        },
+      },
+      { $sort: { totalPurchased: -1 } },
+      { $limit: 1 },
+    ]);
+
+    if (servicesAggregation.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No services found in bookings.",
+      });
+    }
+
+    const mostPurchased = servicesAggregation[0];
+    const serviceDetails = await TypeService.findById(mostPurchased._id);
+
+    res.status(200).json({
+      success: true,
+      message: "Most purchased service fetched successfully",
+      service: {
+        id: mostPurchased._id,
+        name: serviceDetails.nameService,
+        totalPurchased: mostPurchased.totalPurchased,
+        description: serviceDetails.description,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching most purchased service",
+      error: error.message,
+    });
+  }
+});
+
+const totalSalesByMonthBooking = asyncHandler(async (req, res) => {
+  const { year } = req.params;
+
+  try {
+    const salesAggregation = await Booking.aggregate([
+      {
+        $match: { $expr: { $eq: [{ $year: "$realDate" }, parseInt(year)] } },
+      },
+      {
+        $project: {
+          totalPrice: 1,
+          month: { $month: "$realDate" },
+        },
+      },
+      {
+        $group: {
+          _id: "$month",
+          totalSales: { $sum: "$totalPrice" },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const monthlySales = Array.from({ length: 12 }, (_, i) => {
+      const monthData = salesAggregation.find((sale) => sale._id === i + 1);
+      return {
+        month: i + 1,
+        totalSales: monthData ? monthData.totalSales : 0,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Total sales by month for bookings in ${year} fetched successfully.`,
+      data: monthlySales,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching total sales by month for bookings",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = {
   createBooking,
   getBookingById,
@@ -355,4 +475,7 @@ module.exports = {
   deleteBooking,
   handlePaymentUrl,
   handleVnPayReturn,
+  totalPriceBooking,
+  mostPurchasedService,
+  totalSalesByMonthBooking,
 };

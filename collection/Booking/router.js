@@ -5,6 +5,21 @@ const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post("/", uploadCloud.array("images"), BookingControll.createBooking);
 router.get("/", BookingControll.getAllBookings);
+router.get(
+  "/totalPrice",
+  [verifyAccessToken, isAdmin],
+  BookingControll.totalPriceBooking
+);
+router.get(
+  "/most-purchased",
+  [verifyAccessToken, isAdmin],
+  BookingControll.mostPurchasedService
+);
+router.get(
+  "/total-sales-by-month/:year",
+  [verifyAccessToken, isAdmin],
+  BookingControll.totalSalesByMonthBooking
+);
 router.get("/:id", [verifyAccessToken], BookingControll.getBookingById);
 router.get(
   "/user/:userID",

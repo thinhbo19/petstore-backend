@@ -446,7 +446,6 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
     });
   }
 });
-
 const hanldMoMoPay = asyncHandler(async (req, res) => {
   try {
     const partnerCode = process.env.MOMO_PARTNER_CODE;
@@ -509,6 +508,147 @@ const hanldMoMoPay = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Server error", error: error.message });
   }
 });
+const totalPriceOrder = asyncHandler(async (req, res) => {
+  try {
+    const orders = await Order.find();
+
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No orders found",
+      });
+    }
+
+    const totalPrice = orders.reduce((total, order) => {
+      return total + (order.totalPrice || 0);
+    }, 0);
+
+    res.status(200).json({
+      success: true,
+      message: "Total price for all orders calculated successfully",
+      totalPrice,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error calculating total price for all orders",
+      error: error.message,
+    });
+  }
+});
+const mostPurchasedProduct = asyncHandler(async (req, res) => {
+  try {
+    const productsAggregation = await Order.aggregate([
+      { $unwind: "$products" },
+      {
+        $group: {
+          _id: "$products.id",
+          totalPurchased: { $sum: "$products.count" },
+          productName: { $first: "$products.name" },
+          prodImg: { $first: "$products.img" },
+        },
+      },
+      { $sort: { totalPurchased: -1 } },
+      { $limit: 1 },
+    ]);
+
+    if (productsAggregation.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No products found in orders.",
+      });
+    }
+
+    const mostPurchased = productsAggregation[0];
+
+    res.status(200).json({
+      success: true,
+      message: "Most purchased product fetched successfully",
+      product: {
+        id: mostPurchased._id,
+        name: mostPurchased.productName,
+        totalPurchased: mostPurchased.totalPurchased,
+        img: mostPurchased.prodImg,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching most purchased product",
+      error: error.message,
+    });
+  }
+});
+
+const totalSalesByMonth = asyncHandler(async (req, res) => {
+  try {
+    const { year } = req.params;
+    const selectedYear = parseInt(year, 10);
+
+    const salesAggregation = await Order.aggregate([
+      {
+        $project: {
+          totalPrice: 1,
+          month: { $month: "$createdAt" },
+          year: { $year: "$createdAt" },
+        },
+      },
+      {
+        $match: { year: selectedYear },
+      },
+      {
+        $group: {
+          _id: { month: "$month" },
+          totalSales: { $sum: "$totalPrice" },
+        },
+      },
+      {
+        $sort: { "_id.month": 1 },
+      },
+    ]);
+
+    const monthlySales = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      totalSales: 0,
+    }));
+
+    salesAggregation.forEach((sale) => {
+      const monthIndex = sale._id.month - 1;
+      monthlySales[monthIndex].totalSales = sale.totalSales;
+    });
+
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    const formattedData = monthlySales.map((data, index) => ({
+      month: monthNames[index],
+      totalSales: data.totalSales,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Total sales by month fetched successfully",
+      data: formattedData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching total sales by month",
+      error: error.message,
+    });
+  }
+});
 
 module.exports = {
   createOrder,
@@ -520,4 +660,7 @@ module.exports = {
   handlePaymentUrl,
   handleVnPayReturn,
   hanldMoMoPay,
+  totalPriceOrder,
+  mostPurchasedProduct,
+  totalSalesByMonth,
 };
