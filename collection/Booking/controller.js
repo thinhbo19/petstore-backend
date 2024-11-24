@@ -378,8 +378,16 @@ const totalPriceBooking = asyncHandler(async (req, res) => {
 
 const mostPurchasedService = asyncHandler(async (req, res) => {
   try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 15);
+
     const servicesAggregation = await Booking.aggregate([
       { $unwind: "$services" },
+      {
+        $match: {
+          createdAt: { $gte: sevenDaysAgo },
+        },
+      },
       {
         $group: {
           _id: "$services",
@@ -387,9 +395,8 @@ const mostPurchasedService = asyncHandler(async (req, res) => {
         },
       },
       { $sort: { totalPurchased: -1 } },
-      { $limit: 1 },
+      { $limit: 7 },
     ]);
-
     if (servicesAggregation.length === 0) {
       return res.status(404).json({
         success: false,
@@ -397,23 +404,29 @@ const mostPurchasedService = asyncHandler(async (req, res) => {
       });
     }
 
-    const mostPurchased = servicesAggregation[0];
-    const serviceDetails = await TypeService.findById(mostPurchased._id);
+    const servicesDetails = await Promise.all(
+      servicesAggregation.map(async (service) => {
+        const details = await TypeService.findById(service._id);
+        console.log(details);
+
+        return {
+          id: service._id,
+          name: details.nameService,
+          totalPurchased: service.totalPurchased,
+          description: details.description,
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
-      message: "Most purchased service fetched successfully",
-      service: {
-        id: mostPurchased._id,
-        name: serviceDetails.nameService,
-        totalPurchased: mostPurchased.totalPurchased,
-        description: serviceDetails.description,
-      },
+      message: "Top 7 most purchased services fetched successfully",
+      services: servicesDetails,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching most purchased service",
+      message: "Error fetching most purchased services",
       error: error.message,
     });
   }

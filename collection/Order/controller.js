@@ -538,8 +538,16 @@ const totalPriceOrder = asyncHandler(async (req, res) => {
 });
 const mostPurchasedProduct = asyncHandler(async (req, res) => {
   try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const productsAggregation = await Order.aggregate([
       { $unwind: "$products" },
+      {
+        $match: {
+          createdAt: { $gte: sevenDaysAgo },
+        },
+      },
       {
         $group: {
           _id: "$products.id",
@@ -549,32 +557,32 @@ const mostPurchasedProduct = asyncHandler(async (req, res) => {
         },
       },
       { $sort: { totalPurchased: -1 } },
-      { $limit: 1 },
+      { $limit: 7 },
     ]);
 
     if (productsAggregation.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No products found in orders.",
+        message: "No products found in orders within the last 7 days.",
       });
     }
 
-    const mostPurchased = productsAggregation[0];
+    const topProducts = productsAggregation.map((product) => ({
+      id: product._id,
+      name: product.productName,
+      totalPurchased: product.totalPurchased,
+      img: product.prodImg,
+    }));
 
     res.status(200).json({
       success: true,
-      message: "Most purchased product fetched successfully",
-      product: {
-        id: mostPurchased._id,
-        name: mostPurchased.productName,
-        totalPurchased: mostPurchased.totalPurchased,
-        img: mostPurchased.prodImg,
-      },
+      message: "Top purchased products in the last 7 days fetched successfully",
+      products: topProducts,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching most purchased product",
+      message: "Error fetching top purchased products",
       error: error.message,
     });
   }
