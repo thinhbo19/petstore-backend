@@ -15,6 +15,11 @@ router.get(
   OrderControl.mostPurchasedProduct
 );
 router.get(
+  "/most-users",
+  [verifyAccessToken, isAdmin],
+  OrderControl.topUsersByOrders
+);
+router.get(
   "/total-sales-by-month/:year",
   [verifyAccessToken, isAdmin],
   OrderControl.totalSalesByMonth

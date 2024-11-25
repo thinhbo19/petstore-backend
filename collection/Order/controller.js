@@ -658,6 +658,47 @@ const totalSalesByMonth = asyncHandler(async (req, res) => {
   }
 });
 
+const topUsersByOrders = asyncHandler(async (req, res) => {
+  try {
+    const usersAggregation = await Order.aggregate([
+      {
+        $group: {
+          _id: "$OrderBy",
+          orderCount: { $sum: 1 },
+        },
+      },
+      { $sort: { orderCount: -1 } },
+      { $limit: 5 },
+    ]);
+
+    const topUsers = await Promise.all(
+      usersAggregation.map(async (user) => {
+        const userDetails = await User.findById(user._id).select(
+          "username Avatar"
+        );
+        return {
+          userId: user._id,
+          name: userDetails?.username || "Unknown",
+          Avatar: userDetails?.Avatar || "Unknown",
+          orderCount: user.orderCount,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Top 5 users by order count fetched successfully",
+      data: topUsers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching top users",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = {
   createOrder,
   getAllOrders,
@@ -670,5 +711,6 @@ module.exports = {
   hanldMoMoPay,
   totalPriceOrder,
   mostPurchasedProduct,
+  topUsersByOrders,
   totalSalesByMonth,
 };
