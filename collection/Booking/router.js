@@ -20,6 +20,11 @@ router.get(
   [verifyAccessToken, isAdmin],
   BookingControll.totalSalesByMonthBooking
 );
+router.get(
+  "/most-users",
+  [verifyAccessToken, isAdmin],
+  BookingControll.topUsersByBooking
+);
 router.get("/:id", [verifyAccessToken], BookingControll.getBookingById);
 router.get(
   "/user/:userID",

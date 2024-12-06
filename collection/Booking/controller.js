@@ -1,4 +1,5 @@
 const Booking = require("./model");
+const User = require("../Users/model");
 const TypeService = require("../TypeService/model");
 const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
@@ -478,6 +479,46 @@ const totalSalesByMonthBooking = asyncHandler(async (req, res) => {
     });
   }
 });
+const topUsersByBooking = asyncHandler(async (req, res) => {
+  try {
+    const usersAggregation = await Booking.aggregate([
+      {
+        $group: {
+          _id: "$user",
+          orderCount: { $sum: 1 },
+        },
+      },
+      { $sort: { orderCount: -1 } },
+      { $limit: 5 },
+    ]);
+
+    const topUsers = await Promise.all(
+      usersAggregation.map(async (user) => {
+        const userDetails = await User.findById(user._id).select(
+          "username Avatar"
+        );
+        return {
+          userId: user._id,
+          name: userDetails?.username || "Unknown",
+          Avatar: userDetails?.Avatar || "Unknown",
+          orderCount: user.orderCount,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Top 5 users by booking count fetched successfully",
+      data: topUsers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching top users",
+      error: error.message,
+    });
+  }
+});
 
 module.exports = {
   createBooking,
@@ -491,4 +532,5 @@ module.exports = {
   totalPriceBooking,
   mostPurchasedService,
   totalSalesByMonthBooking,
+  topUsersByBooking,
 };
