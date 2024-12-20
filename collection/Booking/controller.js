@@ -379,16 +379,9 @@ const totalPriceBooking = asyncHandler(async (req, res) => {
 
 const mostPurchasedService = asyncHandler(async (req, res) => {
   try {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 15);
-
     const servicesAggregation = await Booking.aggregate([
       { $unwind: "$services" },
-      {
-        $match: {
-          createdAt: { $gte: sevenDaysAgo },
-        },
-      },
+
       {
         $group: {
           _id: "$services",

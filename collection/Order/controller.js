@@ -538,16 +538,9 @@ const totalPriceOrder = asyncHandler(async (req, res) => {
 });
 const mostPurchasedProduct = asyncHandler(async (req, res) => {
   try {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
     const productsAggregation = await Order.aggregate([
       { $unwind: "$products" },
-      {
-        $match: {
-          createdAt: { $gte: sevenDaysAgo },
-        },
-      },
+
       {
         $group: {
           _id: "$products.id",
