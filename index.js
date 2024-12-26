@@ -11,7 +11,7 @@ const app = express();
 // Cấu hình CORS cho Express
 app.use(
   cors({
-    origin: process.env.URL_CLIENT,
+    origin: "https://petstore-theta.vercel.app", // Đảm bảo URL_CLIENT được định nghĩa trong .env
     methods: ["POST", "PUT", "GET", "DELETE", "PATCH"],
   })
 );
@@ -29,11 +29,15 @@ dbConnect();
 // Khởi tạo các router cho Express
 initRouters(app);
 
-// Tạo một instance của socket.io và cấu hình CORS cho socket
-const io = new Server(app.listen(3001), {
+// Tạo HTTP server từ Express
+const server = app.listen(process.env.PORT || 8888, () => {
+  console.log("Server running on port " + (process.env.PORT || 8888));
+});
+
+// Tạo một instance của socket.io và truyền HTTP server vào
+const io = new Server(server, {
   cors: {
-    origin: "https://petstore-theta.vercel.app",
-    // origin: "http://localhost:3000",
+    origin: "https://petstore-theta.vercel.app", // URL của client
     methods: ["GET", "POST"],
   },
 });
@@ -47,11 +51,12 @@ io.on("connection", (socket) => {
 
   // Thêm người dùng mới vào danh sách onlineUser khi có sự kiện "addNewUser"
   socket.on("addNewUser", (userId) => {
-    !onlineUser.some((user) => user.userId === userId) &&
+    if (!onlineUser.some((user) => user.userId === userId)) {
       onlineUser.push({
         userId,
         socketId: socket.id,
       });
+    }
 
     // Phát lại danh sách người dùng trực tuyến cho tất cả client
     io.emit("getOnlineUser", onlineUser);
@@ -78,10 +83,4 @@ io.on("connection", (socket) => {
     onlineUser = onlineUser.filter((user) => user.socketId !== socket.id);
     io.emit("getOnlineUser", onlineUser);
   });
-});
-
-// Khởi chạy server Express tại cổng từ biến môi trường hoặc cổng 8888
-const port = process.env.PORT || 8888;
-app.listen(port, () => {
-  console.log("Server running on port " + port);
 });
