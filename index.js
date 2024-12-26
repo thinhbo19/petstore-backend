@@ -32,8 +32,8 @@ initRouters(app);
 // Tạo một instance của socket.io và cấu hình CORS cho socket
 const io = new Server(app.listen(3001), {
   cors: {
-    // origin: "https://petstore-theta.vercel.app",
-    origin: "http://localhost:3000",
+    origin: "https://petstore-theta.vercel.app",
+    // origin: "http://localhost:3000",
     methods: ["GET", "POST"],
   },
 });
