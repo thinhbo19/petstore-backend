@@ -11,7 +11,7 @@ const app = express();
 // Cấu hình CORS cho Express
 app.use(
   cors({
-    origin: "https://petstore-theta.vercel.app", // Đảm bảo URL_CLIENT được định nghĩa trong .env
+    origin: process.env.URL_CLIENT, // Đảm bảo URL_CLIENT được định nghĩa trong .env
     methods: ["POST", "PUT", "GET", "DELETE", "PATCH"],
   })
 );
@@ -37,7 +37,7 @@ const server = app.listen(process.env.PORT || 8888, () => {
 // Tạo một instance của socket.io và truyền HTTP server vào
 const io = new Server(server, {
   cors: {
-    origin: "https://petstore-theta.vercel.app", // URL của client
+    origin: process.env.URL_CLIENT, // Đảm bảo URL_CLIENT được định nghĩa trong .env
     methods: ["GET", "POST"],
   },
 });

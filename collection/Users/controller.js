@@ -10,7 +10,7 @@ const {
 const jwt = require("jsonwebtoken");
 const sendMail = require("../../utils/sendMail");
 const crypto = require("crypto");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const { generateSlug } = require("../../service/slugifyConfig");
 const {
   generateActivationEmail,

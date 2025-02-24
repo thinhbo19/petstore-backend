@@ -1,0 +1,33 @@
+# .github/workflows/nodejs.yml
+name: Node.js CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build # Nếu bạn có bước build
+
+      - name: Deploy
+        run: npm run deploy # Thay đổi nếu bạn có lệnh deploy cụ thể
