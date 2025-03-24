@@ -166,6 +166,34 @@ const getCurrentPetsByName = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Lỗi." });
   }
 });
+
+const getPetBySpecies = asyncHandler(async (req, res) => {
+  const { specie } = req.params;
+
+  if (!specie) {
+    res.status(400);
+    throw new Error("Breed parameter is required");
+  }
+
+  try {
+    const formattedSpecie = formatString(specie);
+
+    const pets = await Pets.find({ "petBreed.nameSpecies": formattedSpecie });
+    if (pets.length === 0) {
+      return res.status(404).json({
+        message: `No pets found for breed: ${formattedSpecie}`,
+      });
+    }
+
+    res.status(200).json(pets);
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+});
+
 const getPetByBreed = asyncHandler(async (req, res) => {
   const { breed } = req.params;
 
@@ -192,6 +220,7 @@ const getPetByBreed = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const sortingPet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { sort } = req.query;
@@ -397,6 +426,7 @@ module.exports = {
   sortingPet,
   filterPricePet,
   getCurrentPetsByName,
+  getPetBySpecies,
   postRating,
   deleteRating,
 };

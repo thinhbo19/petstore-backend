@@ -16,6 +16,58 @@ const {
   generateActivationEmail,
 } = require("../../service/emailTemplateService");
 
+const createAccount = asyncHandler(async (req, res) => {
+  try {
+    const { email, password, username, role, isBlocked } = req.body;
+    if (!email || !password || !username || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing inputs",
+      });
+    }
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{3,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 3 characters long and include both letters and numbers",
+      });
+    }
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email already exists",
+      });
+    } else {
+      const newUser = await User.create({
+        email: email,
+        password: password,
+        username: username,
+        isBlocked: isBlocked,
+        role: role,
+      });
+      if (newUser) {
+        return res.status(200).json({
+          success: true,
+          message: "Create account successful!",
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: "Something went wrong.",
+        });
+      }
+    }
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      error: error.message,
+    });
+  }
+});
+
 const register = asyncHandler(async (req, res) => {
   try {
     const { email, password, username, mobile } = req.body;
@@ -163,11 +215,19 @@ const login = asyncHandler(async (req, res) => {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-
+    let url;
+    if (userData.role === "Admin") {
+      url = "/dashboard";
+    } else if (userData.role === "User") {
+      url = "/";
+    } else if (userData.role === "Staff") {
+      url = "/Staff";
+    }
     return res.status(200).json({
       success: true,
       userData,
       accessToken,
+      url,
     });
   } catch (error) {
     console.error("Error during login:", error);
@@ -340,7 +400,7 @@ const changePassword = async (req, res) => {
 };
 const deleteUser = asyncHandler(async (req, res) => {
   try {
-    const { uid } = req.body;
+    const { uid } = req.params;
     if (!uid) {
       return res.status(400).json({ success: false, message: "Missing Id!!" });
     }
@@ -386,24 +446,30 @@ const updateUserByUser = asyncHandler(async (req, res) => {
 });
 const blockAccount = asyncHandler(async (req, res) => {
   try {
-    const { userId, isBlocked } = req.body;
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    const { userId } = req.params;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing user ID" });
     }
 
-    user.isBlocked = isBlocked !== undefined ? isBlocked : user.isBlocked;
-    const updatedUser = await user.save();
+    let updateData = req.body;
+    if (req.file && req.file.path) {
+      updateData.Avatar = req.file.path;
+    }
 
-    res.status(200).json({
-      message: "User updated successfully",
-      user: updatedUser,
-    });
+    const user = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+    }).select("-password -refreshToken");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, updateUser: user });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 const changeRole = asyncHandler(async (req, res) => {
@@ -796,6 +862,7 @@ const getVouchers = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  createAccount,
   register,
   activateAccount,
   login,

@@ -3,6 +3,11 @@ const uploadCloud = require("../../middlewares/uploadimg");
 const UserControls = require("./controller");
 const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 
+router.post(
+  "/create-new-account",
+  [verifyAccessToken, isAdmin],
+  UserControls.createAccount
+);
 router.post("/register", UserControls.register);
 router.post("/activate-account", UserControls.activateAccount);
 router.post("/login", UserControls.login);
@@ -20,15 +25,19 @@ router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.get("/forgotpassword", UserControls.forgotPassword);
 router.patch("/resetpassword", UserControls.resetPassword);
 //delete user
-router.delete("/", [verifyAccessToken, isAdmin], UserControls.deleteUser);
+router.delete(
+  "/delete-user/:uid",
+  [verifyAccessToken, isAdmin],
+  UserControls.deleteUser
+);
 router.patch(
   "/update",
   [verifyAccessToken],
   uploadCloud.single("Avatar"),
   UserControls.updateUserByUser
 );
-router.patch(
-  "/adminUpdate",
+router.put(
+  "/adminUpdate/:userId",
   [verifyAccessToken, isAdmin],
   UserControls.blockAccount
 );

@@ -16,6 +16,7 @@ router.get("/current/:pid", petsControlls.getCurrentPets);
 router.get("/currentPet/:pName", petsControlls.getCurrentPetsByName);
 
 router.get("/getPetByBreed/:breed", petsControlls.getPetByBreed);
+router.get("/getPetBySpecies/:specie", petsControlls.getPetBySpecies);
 router.get("/sortPet/:breed", petsControlls.sortingPet);
 router.get("/filterPrice/:breed", petsControlls.filterPricePet);
 
