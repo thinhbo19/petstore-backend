@@ -115,7 +115,7 @@ const changePets = asyncHandler(async (req, res) => {
         deworming: deworming,
         vaccination: vaccination,
         characteristic: characteristic,
-        sold: quantity > 0 ? false : true, // Cập nhật sold dựa trên số lượng
+        sold: quantity > 0 ? false : true,
       },
       { new: true }
     );
