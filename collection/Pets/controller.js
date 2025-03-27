@@ -150,18 +150,25 @@ const getCurrentPets = asyncHandler(async (req, res) => {
 const getCurrentPetsByName = asyncHandler(async (req, res) => {
   try {
     const { pName } = req.params;
-    const regexNamePet = new RegExp(pName, "i");
+    const parts = pName.trim().split(" ");
+    const lastPart = parts[parts.length - 1];
 
-    const existingPets = await Pets.findOne({
-      namePet: { $regex: regexNamePet },
+    const regexNamePet = new RegExp(lastPart, "i");
+
+    const existingPets = await Pets.find({
+      $or: [
+        { namePet: { $regex: regexNamePet } },
+        { namePet: { $regex: new RegExp(pName, "i") } },
+      ],
     }).select("-__v");
 
-    if (!existingPets) {
+    if (!existingPets.length) {
       return res
         .status(404)
         .json({ success: false, message: "Không tìm thấy thú cưng!!!" });
     }
-    return res.status(200).json({ success: true, pet: existingPets });
+
+    return res.status(200).json({ success: true, pets: existingPets });
   } catch (error) {
     return res.status(400).json({ success: false, message: "Lỗi." });
   }

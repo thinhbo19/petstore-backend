@@ -133,13 +133,20 @@ const deleteProduct = asyncHandler(async (req, res) => {
 const getCurrentProductByName = asyncHandler(async (req, res) => {
   try {
     const { prodName } = req.params;
-    const regexName = new RegExp(prodName, "i");
 
-    const existingProd = await Product.findOne({
-      nameProduct: { $regex: regexName },
+    const parts = prodName.trim().split(" ");
+    const lastPart = parts[parts.length - 1];
+
+    const regexName = new RegExp(lastPart, "i");
+
+    const existingProd = await Product.find({
+      $or: [
+        { nameProduct: { $regex: regexName } },
+        { nameProduct: { $regex: new RegExp(prodName, "i") } },
+      ],
     }).select("-__v");
 
-    if (!existingProd) {
+    if (!existingProd.length) {
       return res
         .status(404)
         .json({ success: false, message: "Không tìm thấy thú cưng!!!" });
@@ -151,20 +158,20 @@ const getCurrentProductByName = asyncHandler(async (req, res) => {
 });
 
 const findProductsByCategory = asyncHandler(async (req, res) => {
-  const { nameCate } = req.params;
+  const { id } = req.params;
   try {
-    const products = await Product.find({ "category.nameCate": nameCate });
+    const products = await Product.find({ "category.categoryID": id });
 
     if (products.length > 0) {
       return res.status(200).json({
         success: true,
-        message: `Found ${products.length} products in category: ${nameCate}`,
+        message: `Found ${products.length} products in category: ${id}`,
         products,
       });
     } else {
       return res.status(404).json({
         success: false,
-        message: `No products found for category: ${nameCate}`,
+        message: `No products found for category: ${id}`,
       });
     }
   } catch (error) {
