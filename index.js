@@ -11,7 +11,7 @@ const app = express();
 // Cấu hình CORS cho Express
 app.use(
   cors({
-    origin: process.env.URL_CLIENT, // Đảm bảo URL_CLIENT được định nghĩa trong .env
+    origin: ["http://localhost:3000", process.env.URL_CLIENT], // Đảm bảo URL_CLIENT được định nghĩa trong .env
     methods: ["POST", "PUT", "GET", "DELETE", "PATCH"],
   })
 );
