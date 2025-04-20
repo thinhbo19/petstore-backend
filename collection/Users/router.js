@@ -71,7 +71,7 @@ router.delete(
 router.put(
   "/change-address/:addressIndex",
   verifyAccessToken,
-  controller.changeAddress
+  UserControls.changeAddress
 );
 
 router.put("/change-password", UserControls.changePassword);
