@@ -814,6 +814,47 @@ const deleteAddress = async (req, res) => {
       .json({ message: "An error occurred while deleting address" });
   }
 };
+const changeAddress = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { addressIndex } = req.params;
+  const { address } = req.body;
+
+  try {
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    // Check if the address index is valid
+    if (addressIndex < 0 || addressIndex >= user.Address.length) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid address index" 
+      });
+    }
+
+    // Update the address at the specified index
+    user.Address[addressIndex] = address;
+    await user.save();
+
+    return res.status(200).json({ 
+      success: true,
+      message: "Address updated successfully",
+      data: user.Address
+    });
+  } catch (error) {
+    console.error("Error updating address:", error);
+    return res.status(500).json({ 
+      success: false,
+      message: "An error occurred while updating address",
+      error: error.message
+    });
+  }
+});
 const addVoucher = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
@@ -882,6 +923,7 @@ module.exports = {
   getFavorites,
   addAddress,
   deleteAddress,
+  changeAddress,
   changePassword,
   shoppingCart,
   deleteCart,

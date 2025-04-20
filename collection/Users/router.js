@@ -67,6 +67,12 @@ router.delete(
   [verifyAccessToken],
   UserControls.deleteAddress
 );
+// Add this route to your user routes file
+router.put(
+  "/change-address/:addressIndex",
+  verifyAccessToken,
+  controller.changeAddress
+);
 
 router.put("/change-password", UserControls.changePassword);
 router.put("/add-voucher", [verifyAccessToken], UserControls.addVoucher);
