@@ -47,18 +47,13 @@ router.patch(
   UserControls.changeRole
 );
 //favorite
-router.put("/favoritePet", [verifyAccessToken], UserControls.addFavoritePet);
-router.put(
-  "/favoriteProduct",
-  [verifyAccessToken],
-  UserControls.addFavoriteProduct
-);
+router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
+router.put("/favoritePet", [verifyAccessToken], UserControls.addFavorite);
+
 // cart
 router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
 router.delete("/allCart", [verifyAccessToken], UserControls.deleteAllCart);
 router.delete("/allOneCart", UserControls.deleteCart);
-
-router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 
 //address
 router.post("/address", [verifyAccessToken], UserControls.addAddress);

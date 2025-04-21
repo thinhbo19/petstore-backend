@@ -174,7 +174,9 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select(
+      "_id username Avatar email mobile role Address isBlocked date"
+    );
 
     if (!user) {
       return res.status(400).json({
@@ -182,13 +184,17 @@ const login = asyncHandler(async (req, res) => {
         message: "User not found",
       });
     }
-    if (user.isBlocked) {
+    const userWithPassword = await User.findOne({ email });
+    if (userWithPassword.isBlocked) {
       return res.status(403).json({
         success: false,
         message: "Your account has been blocked.",
       });
     }
-    const isPasswordCorrect = await user.isCorrectPassword(password);
+
+    const isPasswordCorrect = await userWithPassword.isCorrectPassword(
+      password
+    );
 
     if (!isPasswordCorrect) {
       return res.status(400).json({
@@ -197,11 +203,18 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const {
-      password: userPassword,
-      refreshToken,
-      ...userData
-    } = user.toObject();
+    const userData = {
+      _id: user._id,
+      username: user.username,
+      Avatar: user.Avatar,
+      email: user.email,
+      mobile: user.mobile,
+      role: user.role,
+      Address: user.Address,
+      isBlocked: user.isBlocked,
+      date: user.date,
+    };
+
     const accessToken = generateAccessToken(user._id, user.role);
     const newRefreshToken = generateRefreshToken(user._id);
 
@@ -215,6 +228,7 @@ const login = asyncHandler(async (req, res) => {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
     let url;
     if (userData.role === "Admin") {
       url = "/dashboard";
@@ -223,6 +237,7 @@ const login = asyncHandler(async (req, res) => {
     } else if (userData.role === "Staff") {
       url = "/Staff";
     }
+
     return res.status(200).json({
       success: true,
       userData,
@@ -238,6 +253,7 @@ const login = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const logout = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
   if (!cookie || !cookie.refreshToken)
@@ -498,10 +514,9 @@ const changeRole = asyncHandler(async (req, res) => {
     });
   }
 });
-const addFavoritePet = asyncHandler(async (req, res) => {
+const addFavorite = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { petID, imgPet, namePet, nameBreed, nameSpecies, age, gender, price } =
-    req.body;
+  const { pid } = req.body;
 
   try {
     const user = await User.findById(_id);
@@ -510,87 +525,65 @@ const addFavoritePet = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const existingPetIndex = user.favoritePets.findIndex(
-      (pet) => pet.petID.toString() === petID
+    const existingPetIndex = user.favorites.findIndex(
+      (pet) => pet.id.toString() === pid
     );
 
     if (existingPetIndex !== -1) {
-      user.favoritePets.splice(existingPetIndex, 1);
+      user.favorites.splice(existingPetIndex, 1);
       await user.save();
       return res.status(200).json({
-        data: user.favoritePets,
+        data: user.favorites,
         message:
           "The pet has been successfully removed from your favorite list",
       });
     }
 
-    user.favoritePets.push({
-      petID,
-      imgPet,
-      namePet,
-      nameBreed,
-      nameSpecies,
-      age,
-      gender,
-      price,
-    });
-    await user.save();
-    res.status(201).json({
-      message: "The pet has been added to your favorite list",
-      data: user.favoritePets,
-    });
-  } catch (error) {
-    console.error("Error while adding favorite pet:", error);
-    res
-      .status(500)
-      .json({ message: "An error occurred while adding favorite pet" });
-  }
-});
-const addFavoriteProduct = asyncHandler(async (req, res) => {
-  const { _id } = req.user;
-  const { productID, nameProduct, nameBrand, nameCate, price, images } =
-    req.body;
-
-  try {
-    const user = await User.findById(_id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const existingProductIndex = user.favoriteProduct.findIndex(
-      (product) => product.productID.toString() === productID
-    );
-
-    if (existingProductIndex !== -1) {
-      user.favoriteProduct.splice(existingProductIndex, 1);
-      await user.save();
-      return res.status(200).json({
-        message:
-          "The product has been successfully removed from your favorite list",
+    let existingData = await Pet.findById(pid);
+    if (!existingData) {
+      existingData = await Product.findById(pid);
+      if (existingData) {
+        user.favorites.push({
+          id: pid,
+          img: existingData.images[0],
+          name: existingData.nameProduct,
+          type: "Product",
+          price: existingData.price,
+          url: `/accessories/${generateSlug(existingData.nameProduct)}`,
+        });
+      } else {
+        return res.status(404).json({ message: "Item not found" });
+      }
+    } else {
+      let url = "";
+      if (existingData.type === "Cat") {
+        url = `/cats/${generateSlug(existingData.namePet)}`;
+      } else {
+        url = `/dogs/${generateSlug(existingData.namePet)}`;
+      }
+      user.favorites.push({
+        id: pid,
+        img: existingData.imgPet[0],
+        name: existingData.namePet,
+        type: "Pet",
+        price: existingData.price,
+        url: url,
       });
     }
 
-    user.favoriteProduct.push({
-      productID,
-      nameProduct,
-      nameBrand,
-      nameCate,
-      price,
-      images,
-    });
     await user.save();
     res.status(201).json({
-      message: "The product has been added to your favorite list",
-      data: user.favoriteProduct,
+      message: "The item has been added to your favorite list",
+      data: user.favorites,
     });
   } catch (error) {
-    console.error("Error while adding favorite product:", error);
+    console.error("Error while adding favorite item:", error);
     res
       .status(500)
-      .json({ message: "An error occurred while adding favorite product" });
+      .json({ message: "An error occurred while adding favorite item" });
   }
 });
+
 const getFavorites = asyncHandler(async (req, res) => {
   const { _id } = req.user;
 
@@ -601,7 +594,7 @@ const getFavorites = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const allFavorites = [...user.favoritePets, ...user.favoriteProduct];
+    const allFavorites = user.favorites;
     allFavorites.sort((a, b) => b.createdAt - a.createdAt);
 
     res.status(200).json({
@@ -615,6 +608,7 @@ const getFavorites = asyncHandler(async (req, res) => {
       .json({ message: "An error occurred while fetching favorites" });
   }
 });
+
 const shoppingCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { id, quantity } = req.body;
@@ -823,17 +817,17 @@ const changeAddress = asyncHandler(async (req, res) => {
     const user = await User.findById(_id);
 
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: "User not found" 
+        message: "User not found",
       });
     }
 
     // Check if the address index is valid
     if (addressIndex < 0 || addressIndex >= user.Address.length) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "Invalid address index" 
+        message: "Invalid address index",
       });
     }
 
@@ -841,17 +835,17 @@ const changeAddress = asyncHandler(async (req, res) => {
     user.Address[addressIndex] = address;
     await user.save();
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: "Address updated successfully",
-      data: user.Address
+      data: user.Address,
     });
   } catch (error) {
     console.error("Error updating address:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: "An error occurred while updating address",
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -918,8 +912,7 @@ module.exports = {
   updateUserByUser,
   blockAccount,
   changeRole,
-  addFavoritePet,
-  addFavoriteProduct,
+  addFavorite,
   getFavorites,
   addAddress,
   deleteAddress,
