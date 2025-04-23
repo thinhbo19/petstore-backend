@@ -7,14 +7,8 @@ var bookingSchema = new mongoose.Schema(
       ref: "User",
       require: true,
     },
-    pet: {
-      name: { type: String, required: true },
-      images: { type: Array },
-      breed: { type: String },
-      age: { type: Number },
-      gender: { type: String, enum: ["Male", "Female"] },
-      deworming: { type: Number },
-      vaccination: { type: Number },
+    petInfo: {
+      type: string,
     },
     services: [
       {
@@ -31,7 +25,6 @@ var bookingSchema = new mongoose.Schema(
 
     Note: { type: String },
     bookingDate: { type: Date },
-    realDate: { type: Date, default: Date.now },
     totalPrice: { type: Number, required: true },
     paymentMethod: {
       type: String,
