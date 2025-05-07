@@ -8,7 +8,7 @@ var bookingSchema = new mongoose.Schema(
       require: true,
     },
     petInfo: {
-      type: string,
+      type: String,
     },
     services: [
       {
