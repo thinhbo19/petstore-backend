@@ -73,7 +73,7 @@ var userSchema = new mongoose.Schema(
     ],
     isBlocked: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     refreshToken: {
       type: String,
@@ -86,6 +86,10 @@ var userSchema = new mongoose.Schema(
     },
     passwordResetExpire: {
       type: String,
+    },
+    otp: {
+      code: String,
+      expiresAt: Date,
     },
   },
   {

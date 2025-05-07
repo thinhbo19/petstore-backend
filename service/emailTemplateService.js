@@ -1,4 +1,4 @@
-const generateActivationEmail = (username, activationUrl) => {
+const generateActivationEmail = (username, otp) => {
   return `
       <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f7f7; font-family: 'Comic Sans MS', sans-serif; color: #333;">
         <div style="background-color: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
@@ -14,19 +14,23 @@ const generateActivationEmail = (username, activationUrl) => {
             Woof! Hello <strong>${username}</strong>! 🐾
           </p>
           <p style="font-size: 16px; line-height: 1.8; color: #555; text-align: center;">
-            Thank you for joining our pet-friendly platform! To activate your account and start exploring all the pawsome features, just click the button below:
+            Thank you for joining our pet-friendly platform! To activate your account, please use the following OTP code:
           </p>
           
-          <!-- Activation Button -->
+          <!-- OTP Code -->
           <div style="text-align: center; margin: 20px 0;">
-            <a href="${activationUrl}" style="background-color: #FF6F61; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-size: 18px;">
-              Activate Account 🐕
-            </a>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; display: inline-block;">
+              <span style="font-size: 32px; font-weight: bold; color: #FF6F61; letter-spacing: 5px;">${otp}</span>
+            </div>
           </div>
+          
+          <p style="font-size: 14px; color: #666; text-align: center;">
+            This OTP will expire in 5 minutes.
+          </p>
   
           <!-- Additional Message -->
           <p style="font-size: 16px; line-height: 1.8; color: #555; text-align: center;">
-            If you didn’t sign up for this account, please ignore this email and keep enjoying your time with your pets! 🐱
+            If you didn't sign up for this account, please ignore this email and keep enjoying your time with your pets! 🐱
           </p>
   
           <!-- Signature -->

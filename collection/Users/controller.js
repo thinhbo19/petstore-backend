@@ -68,6 +68,11 @@ const createAccount = asyncHandler(async (req, res) => {
   }
 });
 
+// Generate OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 const register = asyncHandler(async (req, res) => {
   try {
     const { email, password, username, mobile } = req.body;
@@ -92,27 +97,36 @@ const register = asyncHandler(async (req, res) => {
         message: "User with this email already exists",
       });
     } else {
+      // Generate OTP
+      const otp = generateOTP();
+      const otpExpiry = new Date();
+      otpExpiry.setMinutes(otpExpiry.getMinutes() + 5); // OTP expires in 5 minutes
+
       const newUser = await User.create({
         email: email,
         password: password,
         username: username,
         mobile: mobile,
         isBlocked: true,
+        otp: {
+          code: otp,
+          expiresAt: otpExpiry,
+        },
       });
-      const activationUrl = `${process.env.URL_CLIENT}/activate-account/${newUser._id}`;
-      const html = generateActivationEmail(username, activationUrl);
+
+      const html = generateActivationEmail(username, otp);
       const data = {
         email: email,
-        subject: "Activate Your Account",
+        subject: "Activate Your Account - OTP Verification",
         html,
       };
       await sendMail(data);
+
       if (newUser) {
         return res.status(200).json({
           success: true,
           message:
-            "Registration successful. Please check your email to active your account!",
-          data: newUser,
+            "Registration successful. Please check your email for OTP verification!",
         });
       } else {
         return res.status(500).json({
@@ -129,21 +143,53 @@ const register = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const activateAccount = asyncHandler(async (req, res) => {
   try {
-    const { userId } = req.body;
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { isBlocked: false },
-      { new: true }
-    );
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Invalid activation link or user does not exist.",
+        message: "User not found",
       });
     }
+
+    if (!user.otp || !user.otp.code || !user.otp.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: "No OTP found for this user",
+      });
+    }
+
+    if (user.otp.code !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    if (new Date() > user.otp.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired",
+      });
+    }
+
+    // Update user status and clear OTP
+    user.isBlocked = false;
+    user.otp = undefined;
+    await user.save();
+
     return res.status(200).json({
       success: true,
       message: "Account activated successfully!",
@@ -156,6 +202,69 @@ const activateAccount = asyncHandler(async (req, res) => {
     });
   }
 });
+
+// Resend OTP
+const resendOTP = asyncHandler(async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!user.isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: "Account is already activated",
+      });
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+
+    // Update user with new OTP
+    user.otp = {
+      code: otp,
+      expiresAt: otpExpiry,
+    };
+    await user.save();
+
+    // Send new OTP email
+    const html = generateActivationEmail(user.username, otp);
+    const data = {
+      email: email,
+      subject: "New OTP for Account Activation",
+      html,
+    };
+    await sendMail(data);
+
+    return res.status(200).json({
+      success: true,
+      message: "New OTP has been sent to your email",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error sending new OTP",
+      error: error.message,
+    });
+  }
+});
+
 const login = asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -340,7 +449,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   });
 });
 const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.query;
+  const { email } = req.body;
   if (!email) {
     return res.status(400).json({
       success: false,
@@ -356,17 +465,16 @@ const forgotPassword = asyncHandler(async (req, res) => {
   }
   const resetToken = user.createPasswordChangeToken();
   await user.save();
-  const resetUrl = `${process.env.URL_CLIENT}/reset-password/${resetToken}`;
+  const resetUrl = `${process.env.URL_CLIENT}/reset-password?token=${resetToken}`;
   const html = `Xin vui lòng click vào link dưới đây để thay đổi mật khẩu của bạn. Link này sẽ hết hạn sau 15 phút kể từ bây giờ. <a href="${resetUrl}">Click Here</a>`;
   const data = {
     email: email,
     html,
   };
-  const sendMailResponse = await sendMail(data);
+  await sendMail(data);
   return res.status(200).json({
     success: true,
     message: "Please check your email!",
-    sendMailResponse: sendMailResponse,
   });
 });
 const resetPassword = asyncHandler(async (req, res) => {
@@ -391,6 +499,22 @@ const resetPassword = asyncHandler(async (req, res) => {
     mes: user ? "Update password" : "Something went wrong",
   });
 });
+const verifyResetToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  const passwordResetToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+  const user = await User.findOne({
+    passwordResetToken,
+    passwordResetExpire: { $gt: Date.now() },
+  });
+  return res.status(200).json({
+    success: user ? true : false,
+    message: user ? "Token is valid" : "Token is invalid",
+  });
+});
+
 const changePassword = async (req, res) => {
   const { userId, currentPassword, newPassword, confirmPassword } = req.body;
 
@@ -900,6 +1024,7 @@ module.exports = {
   createAccount,
   register,
   activateAccount,
+  resendOTP,
   login,
   logout,
   getallAccount,
@@ -908,6 +1033,7 @@ module.exports = {
   refreshAccessToken,
   forgotPassword,
   resetPassword,
+  verifyResetToken,
   deleteUser,
   updateUserByUser,
   blockAccount,

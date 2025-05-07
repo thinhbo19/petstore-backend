@@ -9,7 +9,8 @@ router.post(
   UserControls.createAccount
 );
 router.post("/register", UserControls.register);
-router.post("/activate-account", UserControls.activateAccount);
+router.post("/verify-otp", UserControls.activateAccount);
+router.post("/resend-otp", UserControls.resendOTP);
 router.post("/login", UserControls.login);
 router.get("/logout", UserControls.logout);
 //get user
@@ -22,8 +23,9 @@ router.get(
 );
 //password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
-router.get("/forgotpassword", UserControls.forgotPassword);
-router.patch("/resetpassword", UserControls.resetPassword);
+router.post("/forgotpassword", UserControls.forgotPassword);
+router.post("/resetpassword", UserControls.resetPassword);
+router.post("/verify-reset-token", UserControls.verifyResetToken);
 //delete user
 router.delete(
   "/delete-user/:uid",
