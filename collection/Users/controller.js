@@ -396,7 +396,9 @@ const getallAccount = asyncHandler(async (req, res) => {
 });
 const getOneUser = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const user = await User.findById(_id).select("-refreshToken -password -role");
+  const user = await User.findById(_id).select(
+    "-refreshToken -password -role -createdAt -updatedAt -passwordChangeAt -passwordResetExpire -passwordResetToken"
+  );
   return res.status(200).json({
     success: user ? true : false,
     rs: user ? user : "User not found",
