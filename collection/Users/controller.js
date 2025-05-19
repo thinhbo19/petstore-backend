@@ -119,6 +119,7 @@ const register = asyncHandler(async (req, res) => {
         email: email,
         subject: "Activate Your Account - OTP Verification",
         html,
+        type: "activation",
       };
       await sendMail(data);
 
@@ -249,6 +250,7 @@ const resendOTP = asyncHandler(async (req, res) => {
       email: email,
       subject: "New OTP for Account Activation",
       html,
+      type: "activation",
     };
     await sendMail(data);
 
@@ -470,6 +472,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   const data = {
     email: email,
     html,
+    type: "reset",
   };
   await sendMail(data);
   return res.status(200).json({

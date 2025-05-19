@@ -1,7 +1,7 @@
 const nodemailer = require("nodemailer");
 const asyncHandler = require("express-async-handler");
 
-const sendMail = asyncHandler(async ({ email, html }) => {
+const sendMail = asyncHandler(async ({ email, html, type }) => {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -14,11 +14,17 @@ const sendMail = asyncHandler(async ({ email, html }) => {
 
   async function main() {
     try {
+      let subject = "";
+      if (type === "activation") {
+        subject = "Activate your account";
+      } else if (type === "reset") {
+        subject = "Forgor password!";
+      }
       // Send mail with defined transport object
       const info = await transporter.sendMail({
         from: '"PetStore " <no-reply@petstore.com>',
         to: email,
-        subject: "Forgor password!",
+        subject: subject,
         html: html,
       });
 
