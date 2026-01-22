@@ -1,0 +1,84 @@
+tags:
+  - name: Chat
+    description: Quản lý phòng chat
+
+paths:
+  /api/chat:
+    post:
+      summary: Tạo phòng chat mới
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [senderId, receiverId]
+              properties:
+                senderId:
+                  type: string
+                receiverId:
+                  type: string
+      responses:
+        '201':
+          description: Tạo phòng chat thành công
+    delete:
+      summary: Xóa phòng chat
+      tags: [Chat]
+      parameters:
+        - in: path
+          name: _id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/chat/findone/{_id}:
+    get:
+      summary: Tìm một phòng chat theo ID
+      tags: [Chat]
+      parameters:
+        - in: path
+          name: _id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin phòng chat
+
+  /api/chat/{userId}:
+    get:
+      summary: Tìm phòng chat của người dùng
+      tags: [Chat]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách phòng chat
+
+  /api/chat/find/{firtsId}/{secondId}:
+    get:
+      summary: Tìm phòng chat giữa hai người dùng
+      tags: [Chat]
+      parameters:
+        - in: path
+          name: firtsId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: secondId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin phòng chat
+

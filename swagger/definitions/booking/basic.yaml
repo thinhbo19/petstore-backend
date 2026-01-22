@@ -1,0 +1,99 @@
+paths:
+  /api/booking:
+    post:
+      summary: Tạo booking mới
+      tags: [Booking]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                data:
+                  type: string
+                  description: JSON string chứa thông tin booking
+      responses:
+        '201':
+          description: Tạo booking thành công
+    get:
+      summary: Lấy danh sách tất cả booking
+      tags: [Booking]
+      responses:
+        '200':
+          description: Danh sách booking
+
+  /api/booking/{id}:
+    get:
+      summary: Lấy thông tin booking theo ID
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin booking
+    delete:
+      summary: Xóa booking (Admin only)
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/booking/user/{userID}:
+    get:
+      summary: Lấy danh sách booking của người dùng
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách booking
+
+  /api/booking/status/{id}:
+    put:
+      summary: Cập nhật trạng thái booking
+      tags: [Booking]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+

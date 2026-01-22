@@ -1,0 +1,62 @@
+paths:
+  /api/order/createUrl:
+    post:
+      summary: Tạo URL thanh toán VNPay
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, amount]
+              properties:
+                orderId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: URL thanh toán
+
+  /api/order/vnpay/vnpay_return:
+    get:
+      summary: Callback từ VNPay sau khi thanh toán
+      tags: [Orders]
+      parameters:
+        - in: query
+          name: vnp_Amount
+          schema:
+            type: string
+        - in: query
+          name: vnp_BankCode
+          schema:
+            type: string
+        - in: query
+          name: vnp_ResponseCode
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kết quả thanh toán
+
+  /api/order/momopay:
+    post:
+      summary: Thanh toán qua MoMo
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, amount]
+              properties:
+                orderId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: URL thanh toán MoMo
+

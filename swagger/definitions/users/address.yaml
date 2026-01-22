@@ -1,0 +1,63 @@
+paths:
+  /api/user/address:
+    post:
+      summary: Thêm địa chỉ mới
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Thêm địa chỉ thành công
+
+  /api/user/address/{addressIndex}:
+    delete:
+      summary: Xóa địa chỉ
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: addressIndex
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Xóa địa chỉ thành công
+
+  /api/user/change-address/{addressIndex}:
+    put:
+      summary: Thay đổi địa chỉ
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: addressIndex
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Thay đổi địa chỉ thành công
+

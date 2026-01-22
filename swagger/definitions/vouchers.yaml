@@ -1,0 +1,102 @@
+tags:
+  - name: Vouchers
+    description: Quản lý voucher/khuyến mãi
+
+paths:
+  /api/voucher:
+    post:
+      summary: Tạo voucher mới (Admin only)
+      tags: [Vouchers]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, discount, expiryDate]
+              properties:
+                code:
+                  type: string
+                discount:
+                  type: number
+                expiryDate:
+                  type: string
+                  format: date-time
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Tạo voucher thành công
+    get:
+      summary: Lấy danh sách tất cả voucher
+      tags: [Vouchers]
+      responses:
+        '200':
+          description: Danh sách voucher
+
+  /api/voucher/client:
+    get:
+      summary: Lấy danh sách voucher cho client
+      tags: [Vouchers]
+      responses:
+        '200':
+          description: Danh sách voucher
+
+  /api/voucher/{id}:
+    get:
+      summary: Lấy thông tin voucher theo ID
+      tags: [Vouchers]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin voucher
+    put:
+      summary: Cập nhật voucher (Admin only)
+      tags: [Vouchers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                discount:
+                  type: number
+                expiryDate:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Cập nhật thành công
+    delete:
+      summary: Xóa voucher (Admin only)
+      tags: [Vouchers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+

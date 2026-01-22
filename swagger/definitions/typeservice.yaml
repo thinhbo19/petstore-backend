@@ -1,0 +1,156 @@
+tags:
+  - name: TypeService
+    description: Quản lý loại dịch vụ (spa, hotel)
+
+paths:
+  /api/typeService:
+    post:
+      summary: Tạo dịch vụ mới (Admin only)
+      tags: [TypeService]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, price]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [spa, hotel]
+                price:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Tạo dịch vụ thành công
+    get:
+      summary: Lấy danh sách tất cả dịch vụ
+      tags: [TypeService]
+      responses:
+        '200':
+          description: Danh sách dịch vụ
+
+  /api/typeService/spa:
+    get:
+      summary: Lấy danh sách dịch vụ spa
+      tags: [TypeService]
+      responses:
+        '200':
+          description: Danh sách dịch vụ spa
+
+  /api/typeService/hotel:
+    get:
+      summary: Lấy danh sách dịch vụ hotel
+      tags: [TypeService]
+      responses:
+        '200':
+          description: Danh sách dịch vụ hotel
+
+  /api/typeService/{serviceID}:
+    get:
+      summary: Lấy thông tin dịch vụ theo ID
+      tags: [TypeService]
+      parameters:
+        - in: path
+          name: serviceID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin dịch vụ
+    delete:
+      summary: Xóa dịch vụ (Admin only)
+      tags: [TypeService]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: serviceID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/typeService/change/{serviceID}:
+    put:
+      summary: Cập nhật dịch vụ (Admin only)
+      tags: [TypeService]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: serviceID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/typeService/rating/{serId}:
+    post:
+      summary: Đánh giá dịch vụ
+      tags: [TypeService]
+      parameters:
+        - in: path
+          name: serId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                feedback_img:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                rating:
+                  type: number
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Đánh giá thành công
+
+  /api/typeService/ratings/{type}:
+    get:
+      summary: Lấy đánh giá theo loại dịch vụ
+      tags: [TypeService]
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [spa, hotel]
+      responses:
+        '200':
+          description: Danh sách đánh giá
+

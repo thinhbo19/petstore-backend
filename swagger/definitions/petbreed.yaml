@@ -1,0 +1,140 @@
+tags:
+  - name: PetBreed
+    description: Quản lý giống thú cưng
+
+paths:
+  /api/petBreed/addNewBreed:
+    post:
+      summary: Tạo giống thú cưng mới (Admin only)
+      tags: [PetBreed]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imgBreed:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                nameBreed:
+                  type: string
+                species:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Tạo giống thành công
+
+  /api/petBreed/getAllBreed:
+    get:
+      summary: Lấy danh sách tất cả giống
+      tags: [PetBreed]
+      responses:
+        '200':
+          description: Danh sách giống
+
+  /api/petBreed/getCurrentBreed/{bid}:
+    get:
+      summary: Lấy thông tin giống theo ID
+      tags: [PetBreed]
+      parameters:
+        - in: path
+          name: bid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin giống
+
+  /api/petBreed/changeBreed/{bid}:
+    put:
+      summary: Cập nhật giống (Admin only)
+      tags: [PetBreed]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nameBreed:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/petBreed/{bid}:
+    delete:
+      summary: Xóa giống (Admin only)
+      tags: [PetBreed]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: bid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/petBreed/getBreedBySpecies/{species}:
+    get:
+      summary: Lấy giống theo loài
+      tags: [PetBreed]
+      parameters:
+        - in: path
+          name: species
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách giống
+
+  /api/petBreed/getBreedByNameSpecies/{nameSpecies}:
+    get:
+      summary: Lấy giống theo tên loài
+      tags: [PetBreed]
+      parameters:
+        - in: path
+          name: nameSpecies
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách giống
+
+  /api/petBreed/sortBreed/{species}:
+    get:
+      summary: Sắp xếp giống theo loài
+      tags: [PetBreed]
+      parameters:
+        - in: path
+          name: species
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách đã sắp xếp
+

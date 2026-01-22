@@ -1,0 +1,172 @@
+tags:
+  - name: Products
+    description: Quản lý sản phẩm
+
+paths:
+  /api/product/addProduct:
+    post:
+      summary: Thêm sản phẩm mới
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                data:
+                  type: string
+                  description: JSON string chứa thông tin sản phẩm
+      responses:
+        '201':
+          description: Tạo sản phẩm thành công
+
+  /api/product:
+    get:
+      summary: Lấy danh sách sản phẩm
+      tags: [Products]
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+
+  /api/product/next/{pid}:
+    get:
+      summary: Lấy dữ liệu tiếp theo (phân trang)
+      tags: [Products]
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+
+  /api/product/currentProduct/{prodName}:
+    get:
+      summary: Lấy thông tin sản phẩm theo tên
+      tags: [Products]
+      parameters:
+        - in: path
+          name: prodName
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin sản phẩm
+
+  /api/product/category/{id}:
+    get:
+      summary: Lấy sản phẩm theo danh mục
+      tags: [Products]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+
+  /api/product/current/{prodid}:
+    get:
+      summary: Lấy thông tin sản phẩm theo ID
+      tags: [Products]
+      parameters:
+        - in: path
+          name: prodid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin sản phẩm
+
+  /api/product/{productId}:
+    put:
+      summary: Cập nhật sản phẩm (Admin only)
+      tags: [Products]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Cập nhật thành công
+    delete:
+      summary: Xóa sản phẩm (Admin only)
+      tags: [Products]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/product/prodpets/{pid}:
+    get:
+      summary: Lấy dữ liệu sản phẩm và thú cưng
+      tags: [Products]
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dữ liệu sản phẩm và thú cưng
+
+  /api/product/rating/{prodId}:
+    post:
+      summary: Đánh giá sản phẩm
+      tags: [Products]
+      parameters:
+        - in: path
+          name: prodId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                feedback_img:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                rating:
+                  type: number
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Đánh giá thành công
+

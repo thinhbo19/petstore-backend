@@ -5,6 +5,13 @@ const initRouters = require("./router");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const {
+  swaggerUi,
+  swaggerSpec,
+  mergedTags,
+  getSwaggerSpecByTag,
+} = require("./swagger");
+const { renderSwaggerHome } = require("./swagger/homepage");
 
 const app = express();
 
@@ -22,6 +29,66 @@ app.use(cookieParser());
 // Cấu hình Express để xử lý JSON và URL-encoded requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Swagger UI - Trang chủ hiển thị danh sách tags
+app.get("/api-docs", (req, res) => {
+  const html = renderSwaggerHome(mergedTags);
+  res.send(html);
+});
+
+// Serve Swagger UI assets (phải đặt trước route GET)
+app.use("/api-docs/:tag", swaggerUi.serve);
+
+// Swagger UI cho từng tag cụ thể
+app.get("/api-docs/:tag", (req, res, next) => {
+  const tagName = req.params.tag;
+  
+  // Kiểm tra xem tag có tồn tại không
+  const tagExists = mergedTags.some((t) => t.name === tagName);
+  if (!tagExists) {
+    return res.status(404).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Tag Not Found</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: #f5f5f5;
+          }
+          .error {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            display: inline-block;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          }
+          a {
+            color: #667eea;
+            text-decoration: none;
+            margin-top: 20px;
+            display: inline-block;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="error">
+          <h1>Tag "${tagName}" không tồn tại</h1>
+          <a href="/api-docs">← Quay lại danh sách tags</a>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
+  const tagSpec = getSwaggerSpecByTag(tagName);
+  return swaggerUi.setup(tagSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: `${tagName} API Documentation`,
+  })(req, res, next);
+});
 
 // Kết nối cơ sở dữ liệu
 dbConnect();

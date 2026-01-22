@@ -11,7 +11,6 @@ router.post(
 router.post("/register", UserControls.register);
 router.post("/verify-otp", UserControls.activateAccount);
 router.post("/resend-otp", UserControls.resendOTP);
-router.post("/login", UserControls.login);
 router.get("/logout", UserControls.logout);
 //get user
 router.get("/allUser", UserControls.getallAccount);

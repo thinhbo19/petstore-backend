@@ -1,0 +1,222 @@
+tags:
+  - name: Pets
+    description: Quản lý thú cưng
+
+paths:
+  /api/pets/addPets:
+    post:
+      summary: Thêm thú cưng mới (Admin only)
+      tags: [Pets]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imgPet:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                data:
+                  type: string
+                  description: JSON string chứa thông tin thú cưng
+      responses:
+        '201':
+          description: Tạo thú cưng thành công
+
+  /api/pets/allPets:
+    get:
+      summary: Lấy danh sách thú cưng
+      tags: [Pets]
+      responses:
+        '200':
+          description: Danh sách thú cưng
+
+  /api/pets/next/{pid}:
+    get:
+      summary: Lấy dữ liệu tiếp theo (phân trang)
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thú cưng
+
+  /api/pets/{pid}:
+    delete:
+      summary: Xóa thú cưng (Admin only)
+      tags: [Pets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+    put:
+      summary: Cập nhật thông tin thú cưng (Admin only)
+      tags: [Pets]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/pets/current/{pid}:
+    get:
+      summary: Lấy thông tin thú cưng theo ID
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: pid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin thú cưng
+
+  /api/pets/currentPet/{pName}:
+    get:
+      summary: Lấy thông tin thú cưng theo tên
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: pName
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin thú cưng
+
+  /api/pets/getPetByBreed/{breed}:
+    get:
+      summary: Lấy thú cưng theo giống
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: breed
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thú cưng
+
+  /api/pets/getPetBySpecies/{specie}:
+    get:
+      summary: Lấy thú cưng theo loài
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: specie
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách thú cưng
+
+  /api/pets/sortPet/{breed}:
+    get:
+      summary: Sắp xếp thú cưng theo giống
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: breed
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách đã sắp xếp
+
+  /api/pets/filterPrice/{breed}:
+    get:
+      summary: Lọc thú cưng theo giá và giống
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: breed
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: minPrice
+          schema:
+            type: number
+        - in: query
+          name: maxPrice
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Danh sách đã lọc
+
+  /api/pets/rating/{petId}:
+    post:
+      summary: Đánh giá thú cưng
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: petId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                feedback_img:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                rating:
+                  type: number
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Đánh giá thành công
+    delete:
+      summary: Xóa đánh giá
+      tags: [Pets]
+      parameters:
+        - in: path
+          name: petId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa đánh giá thành công
+

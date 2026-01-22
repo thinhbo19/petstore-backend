@@ -1,0 +1,47 @@
+paths:
+  /api/order/totalPrice:
+    get:
+      summary: Tổng doanh thu từ đơn hàng (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tổng tiền
+
+  /api/order/most-purchased:
+    get:
+      summary: Sản phẩm bán chạy nhất (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+
+  /api/order/most-users:
+    get:
+      summary: Top người dùng mua nhiều nhất (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách người dùng
+
+  /api/order/total-sales-by-month/{year}:
+    get:
+      summary: Doanh thu theo tháng (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: year
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Doanh thu theo tháng
+

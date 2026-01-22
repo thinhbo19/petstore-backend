@@ -1,0 +1,154 @@
+paths:
+  /api/user/current:
+    get:
+      summary: Lấy thông tin người dùng hiện tại
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Thông tin người dùng
+
+  /api/user/update:
+    patch:
+      summary: Cập nhật thông tin người dùng
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                Avatar:
+                  type: string
+                  format: binary
+                username:
+                  type: string
+                mobile:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/user/allUser:
+    get:
+      summary: Lấy danh sách tất cả người dùng
+      tags: [Users]
+      responses:
+        '200':
+          description: Danh sách người dùng
+
+  /api/user/userCurrent:
+    get:
+      summary: Lấy thông tin người dùng (Admin only)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Thông tin người dùng
+
+  /api/user/create-new-account:
+    post:
+      summary: Tạo tài khoản mới (Admin only)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, username, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 3
+                  description: "Ít nhất 3 ký tự, bao gồm chữ và số"
+                username:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, user]
+                isBlocked:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Tạo tài khoản thành công
+        '400':
+          description: Thiếu dữ liệu hoặc email đã tồn tại
+
+  /api/user/delete-user/{uid}:
+    delete:
+      summary: Xóa người dùng (Admin only)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: uid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+        '403':
+          description: Không có quyền
+
+  /api/user/adminUpdate/{userId}:
+    put:
+      summary: Cập nhật trạng thái block tài khoản (Admin only)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isBlocked:
+                  type: boolean
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/user/changeRole:
+    patch:
+      summary: Thay đổi vai trò người dùng (Admin only)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, role]
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, user]
+      responses:
+        '200':
+          description: Thay đổi vai trò thành công
+

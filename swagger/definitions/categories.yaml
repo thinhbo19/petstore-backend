@@ -1,0 +1,90 @@
+tags:
+  - name: Categories
+    description: Quản lý danh mục sản phẩm
+
+paths:
+  /api/cate/addCate:
+    post:
+      summary: Tạo danh mục mới (Admin only)
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Tạo category thành công
+
+  /api/cate:
+    get:
+      summary: Lấy danh sách danh mục
+      tags: [Categories]
+      responses:
+        '200':
+          description: Danh sách category
+
+  /api/cate/{cateId}:
+    delete:
+      summary: Xóa danh mục (Admin only)
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+    patch:
+      summary: Cập nhật danh mục (Admin only)
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cateId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+
+  /api/cate/current/{cid}:
+    get:
+      summary: Lấy thông tin danh mục theo id
+      tags: [Categories]
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin category
+

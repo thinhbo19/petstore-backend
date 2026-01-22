@@ -1,0 +1,44 @@
+paths:
+  /api/booking/createUrl:
+    post:
+      summary: Tạo URL thanh toán VNPay
+      tags: [Booking]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                data:
+                  type: string
+      responses:
+        '200':
+          description: URL thanh toán
+
+  /api/booking/vnpay/vnpay_return:
+    get:
+      summary: Callback từ VNPay sau khi thanh toán
+      tags: [Booking]
+      parameters:
+        - in: query
+          name: vnp_Amount
+          schema:
+            type: string
+        - in: query
+          name: vnp_BankCode
+          schema:
+            type: string
+        - in: query
+          name: vnp_ResponseCode
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kết quả thanh toán
+

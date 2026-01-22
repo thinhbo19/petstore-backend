@@ -1,0 +1,47 @@
+paths:
+  /api/booking/totalPrice:
+    get:
+      summary: Tổng doanh thu từ booking (Admin only)
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tổng tiền
+
+  /api/booking/most-purchased:
+    get:
+      summary: Dịch vụ được đặt nhiều nhất (Admin only)
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách dịch vụ
+
+  /api/booking/total-sales-by-month/{year}:
+    get:
+      summary: Doanh thu theo tháng (Admin only)
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: year
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Doanh thu theo tháng
+
+  /api/booking/most-users:
+    get:
+      summary: Top người dùng đặt nhiều nhất (Admin only)
+      tags: [Booking]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách người dùng
+

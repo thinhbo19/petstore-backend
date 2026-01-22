@@ -1,0 +1,41 @@
+tags:
+  - name: Messager
+    description: Quản lý tin nhắn trong chat
+
+paths:
+  /api/mess:
+    post:
+      summary: Gửi tin nhắn mới
+      tags: [Messager]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chatId, senderId, text]
+              properties:
+                chatId:
+                  type: string
+                senderId:
+                  type: string
+                text:
+                  type: string
+      responses:
+        '201':
+          description: Gửi tin nhắn thành công
+
+  /api/mess/{chatId}:
+    get:
+      summary: Lấy danh sách tin nhắn trong phòng chat
+      tags: [Messager]
+      parameters:
+        - in: path
+          name: chatId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách tin nhắn
+

@@ -1,0 +1,129 @@
+paths:
+  /api/order/order:
+    post:
+      summary: Tạo đơn hàng mới
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [products, address, paymentMethod]
+              properties:
+                products:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productId:
+                        type: string
+                      quantity:
+                        type: number
+                address:
+                  type: string
+                paymentMethod:
+                  type: string
+                  enum: [cod, vnpay, momo]
+      responses:
+        '201':
+          description: Tạo đơn hàng thành công
+
+  /api/order:
+    get:
+      summary: Lấy tất cả đơn hàng
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách đơn hàng
+
+  /api/order/{orderID}:
+    get:
+      summary: Lấy thông tin đơn hàng theo ID (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin đơn hàng
+    delete:
+      summary: Xóa đơn hàng (Admin only)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+
+  /api/order/user/{userID}:
+    get:
+      summary: Lấy danh sách đơn hàng của người dùng
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Danh sách đơn hàng
+
+  /api/order/userOne/{orderID}:
+    get:
+      summary: Lấy thông tin một đơn hàng của người dùng
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin đơn hàng
+
+  /api/order/update/{orderID}:
+    patch:
+      summary: Cập nhật trạng thái đơn hàng
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, shipping, delivered, cancelled]
+      responses:
+        '200':
+          description: Cập nhật thành công
+

@@ -1,0 +1,113 @@
+tags:
+  - name: News
+    description: Quản lý tin tức
+
+paths:
+  /api/news/addNews:
+    post:
+      summary: Tạo tin tức mới (Admin only)
+      tags: [News]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                title:
+                  type: string
+                content:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Tạo tin tức thành công
+
+  /api/news:
+    get:
+      summary: Lấy danh sách tin tức
+      tags: [News]
+      responses:
+        '200':
+          description: Danh sách tin tức
+
+  /api/news/{nid}:
+    put:
+      summary: Cập nhật tin tức (Admin only)
+      tags: [News]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: nid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Cập nhật thành công
+    delete:
+      summary: Xóa tin tức (Admin only)
+      tags: [News]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: nid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Xóa thành công
+    get:
+      summary: Lấy thông tin tin tức theo ID
+      tags: [News]
+      parameters:
+        - in: path
+          name: nid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin tin tức
+
+  /api/news/current/{nName}:
+    get:
+      summary: Lấy thông tin tin tức theo tên
+      tags: [News]
+      parameters:
+        - in: path
+          name: nName
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin tin tức
+
