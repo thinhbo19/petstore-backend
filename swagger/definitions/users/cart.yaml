@@ -1,4 +1,43 @@
 paths:
+  /api/user/getCart:
+    get:
+      summary: Lấy giỏ hàng của người dùng
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lấy giỏ hàng thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cart:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        images:
+                          type: string
+                        quantity:
+                          type: number
+                          example: 1
+                        price:
+                          type: number
+                          example: 100000
+        responses:
+          "401":
+            description: Unauthorized
+          "500":
+            description: Internal Server Error
+          "200":
+            description: Lấy giỏ hàng thành công
+
   /api/user/cart:
     put:
       summary: Cập nhật giỏ hàng
@@ -12,25 +51,25 @@ paths:
             schema:
               type: object
               properties:
-                productId:
+                id:
                   type: string
                 quantity:
                   type: number
       responses:
-        '200':
+        "200":
           description: Cập nhật giỏ hàng thành công
 
-  /api/user/allCart:
+  /api/user/deleteAllCart:
     delete:
       summary: Xóa toàn bộ giỏ hàng
       tags: [Users]
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Xóa giỏ hàng thành công
 
-  /api/user/allOneCart:
+  /api/user/deleteOneCart:
     delete:
       summary: Xóa một sản phẩm khỏi giỏ hàng
       tags: [Users]
@@ -40,11 +79,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [productId]
+              required: [id]
               properties:
-                productId:
+                id:
                   type: string
       responses:
-        '200':
+        "200":
           description: Xóa sản phẩm khỏi giỏ hàng thành công
-

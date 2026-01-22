@@ -286,7 +286,7 @@ const login = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findOne({ email }).select(
-      "_id username Avatar email mobile role Address isBlocked date"
+      "_id username Avatar email mobile role Address isBlocked date",
     );
 
     if (!user) {
@@ -303,9 +303,8 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const isPasswordCorrect = await userWithPassword.isCorrectPassword(
-      password
-    );
+    const isPasswordCorrect =
+      await userWithPassword.isCorrectPassword(password);
 
     if (!isPasswordCorrect) {
       return res.status(400).json({
@@ -332,7 +331,7 @@ const login = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
       user._id,
       { refreshToken: newRefreshToken },
-      { new: true }
+      { new: true },
     );
 
     res.cookie("refreshToken", newRefreshToken, {
@@ -372,7 +371,7 @@ const logout = asyncHandler(async (req, res) => {
   await User.findOneAndUpdate(
     { refreshToken: cookie.refreshToken },
     { refreshToken: "" },
-    { new: true }
+    { new: true },
   );
   res.clearCookie("refreshToken", {
     httpOnly: true,
@@ -397,7 +396,7 @@ const getallAccount = asyncHandler(async (req, res) => {
 const getOneUser = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const user = await User.findById(_id).select(
-    "-refreshToken -password -role -createdAt -updatedAt -passwordChangeAt -passwordResetExpire -passwordResetToken"
+    "-refreshToken -password -role -createdAt -updatedAt -passwordChangeAt -passwordResetExpire -passwordResetToken",
   );
   return res.status(200).json({
     success: user ? true : false,
@@ -414,7 +413,7 @@ const getUserMess = asyncHandler(async (req, res) => {
       });
     }
     const user = await User.findById(_id).select(
-      "-refreshToken -password -role"
+      "-refreshToken -password -role",
     );
     if (!user) {
       return res.status(404).json({
@@ -655,7 +654,7 @@ const addFavorite = asyncHandler(async (req, res) => {
     }
 
     const existingPetIndex = user.favorites.findIndex(
-      (pet) => pet.id.toString() === pid
+      (pet) => pet.id.toString() === pid,
     );
 
     if (existingPetIndex !== -1) {
@@ -738,6 +737,22 @@ const getFavorites = asyncHandler(async (req, res) => {
   }
 });
 
+const getCarts = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  try {
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json({
+      success: true,
+      cart: user.cart,
+    });
+  } catch (error) {
+    console.error("Error while fetching cart:", error);
+    res.status(500).json({ message: "An error occurred while fetching cart" });
+  }
+});
 const shoppingCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { id, quantity } = req.body;
@@ -773,9 +788,7 @@ const shoppingCart = asyncHandler(async (req, res) => {
         message: "Quantity updated in your cart",
       });
     }
-
     let itemInfo = await Pet.findById(id);
-
     if (itemInfo) {
       images = itemInfo.imgPet[0];
       displayInfo = {
@@ -783,14 +796,12 @@ const shoppingCart = asyncHandler(async (req, res) => {
         quantity: itemInfo.quantity,
         price: itemInfo.price,
         slug: `/shop/${generateSlug(
-          itemInfo.petBreed.nameSpecies
+          itemInfo.petBreed.nameSpecies,
         )}/${generateSlug(itemInfo.petBreed.nameBreed)}/${generateSlug(
-          itemInfo.namePet
+          itemInfo.namePet,
         )}`,
       };
-    }
-
-    if (!itemInfo) {
+    } else if (!itemInfo) {
       itemInfo = await Product.findById(id);
       images = itemInfo.images[0];
       displayInfo = {
@@ -798,12 +809,10 @@ const shoppingCart = asyncHandler(async (req, res) => {
         quantity: itemInfo.quantity,
         price: itemInfo.price,
         slug: `/accessory/${generateSlug(
-          itemInfo.category.nameCate
+          itemInfo.category.nameCate,
         )}/${generateSlug(itemInfo.nameProduct)}`,
       };
-    }
-
-    if (!itemInfo) {
+    } else {
       return res.status(404).json({
         message: "Item not found in Pet or Product collections",
       });
@@ -836,7 +845,7 @@ const shoppingCart = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred" });
   }
 });
-const deleteCart = async (req, res) => {
+const deleteOneCart = async (req, res) => {
   const { id, userID } = req.body;
 
   try {
@@ -892,6 +901,7 @@ const deleteAllCart = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const addAddress = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { address } = req.body;
@@ -987,7 +997,7 @@ const addVoucher = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     const existingVoucher = user.Voucher.find(
-      (voucher) => voucher.voucherID.toString() === voucherId
+      (voucher) => voucher.voucherID.toString() === voucherId,
     );
     if (existingVoucher) {
       return res
@@ -1049,8 +1059,9 @@ module.exports = {
   deleteAddress,
   changeAddress,
   changePassword,
+  getCarts,
   shoppingCart,
-  deleteCart,
+  deleteOneCart,
   deleteAllCart,
   addVoucher,
   getVouchers,

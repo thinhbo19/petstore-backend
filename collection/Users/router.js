@@ -6,9 +6,10 @@ const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
 router.post(
   "/create-new-account",
   [verifyAccessToken, isAdmin],
-  UserControls.createAccount
+  UserControls.createAccount,
 );
 router.post("/register", UserControls.register);
+router.post("/login", UserControls.login);
 router.post("/verify-otp", UserControls.activateAccount);
 router.post("/resend-otp", UserControls.resendOTP);
 router.get("/logout", UserControls.logout);
@@ -18,7 +19,7 @@ router.get("/current", verifyAccessToken, UserControls.getOneUser);
 router.get(
   "/userCurrent",
   [verifyAccessToken, isAdmin],
-  UserControls.getUserMess
+  UserControls.getUserMess,
 );
 //password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
@@ -29,45 +30,50 @@ router.post("/verify-reset-token", UserControls.verifyResetToken);
 router.delete(
   "/delete-user/:uid",
   [verifyAccessToken, isAdmin],
-  UserControls.deleteUser
+  UserControls.deleteUser,
 );
 router.patch(
   "/update",
   [verifyAccessToken],
   uploadCloud.single("Avatar"),
-  UserControls.updateUserByUser
+  UserControls.updateUserByUser,
 );
 router.put(
   "/adminUpdate/:userId",
   [verifyAccessToken, isAdmin],
-  UserControls.blockAccount
+  UserControls.blockAccount,
 );
 router.patch(
   "/changeRole",
   [verifyAccessToken, isAdmin],
-  UserControls.changeRole
+  UserControls.changeRole,
 );
 //favorite
 router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 router.put("/favoritePet", [verifyAccessToken], UserControls.addFavorite);
 
 // cart
+router.get("/cart", [verifyAccessToken], UserControls.getCarts);
 router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
-router.delete("/allCart", [verifyAccessToken], UserControls.deleteAllCart);
-router.delete("/allOneCart", UserControls.deleteCart);
+router.delete("/deleteOneCart", UserControls.deleteOneCart);
+router.delete(
+  "/deleteAllCart",
+  [verifyAccessToken],
+  UserControls.deleteAllCart,
+);
 
 //address
 router.post("/address", [verifyAccessToken], UserControls.addAddress);
 router.delete(
   "/address/:addressIndex",
   [verifyAccessToken],
-  UserControls.deleteAddress
+  UserControls.deleteAddress,
 );
 // Add this route to your user routes file
 router.put(
   "/change-address/:addressIndex",
   verifyAccessToken,
-  UserControls.changeAddress
+  UserControls.changeAddress,
 );
 
 router.put("/change-password", UserControls.changePassword);
