@@ -59,6 +59,7 @@ const createNewPets = asyncHandler(async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
+
 const getAllPets = asyncHandler(async (req, res) => {
   try {
     const allPets = await Pets.find();
@@ -67,6 +68,36 @@ const getAllPets = asyncHandler(async (req, res) => {
     return res.status(500).json({ success: false, message: "Lỗi server." });
   }
 });
+
+const getNextData = asyncHandler(async (req, res) => {
+  try {
+    const { pid } = req.params;
+
+    const pets = await Pets.find().sort({ createdAt: 1 });
+
+    if (!pets.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không có thú nào" });
+    }
+
+    const index = pets.findIndex((p) => p._id.toString() === pid);
+
+    if (index === -1) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không tìm thấy thú với id này" });
+    }
+
+    const nextIndex = (index + 1) % pets.length;
+    const nextPet = pets[nextIndex];
+
+    return res.status(200).json({ success: true, pet: nextPet });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 const deletePet = asyncHandler(async (req, res) => {
   try {
     const { pid } = req.params;
@@ -80,6 +111,7 @@ const deletePet = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+
 const changePets = asyncHandler(async (req, res) => {
   try {
     const { pid } = req.params;
@@ -426,6 +458,7 @@ const deleteRating = asyncHandler(async (req, res) => {
 module.exports = {
   createNewPets,
   getAllPets,
+  getNextData,
   deletePet,
   changePets,
   getCurrentPets,

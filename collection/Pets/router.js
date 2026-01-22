@@ -10,6 +10,7 @@ router.post(
   petsControlls.createNewPets
 );
 router.get("/allPets", petsControlls.getAllPets);
+router.get("/next/:pid", petsControlls.getNextData);
 router.delete("/:pid", [verifyAccessToken, isAdmin], petsControlls.deletePet);
 router.put("/:pid", [verifyAccessToken, isAdmin], petsControlls.changePets);
 router.get("/current/:pid", petsControlls.getCurrentPets);

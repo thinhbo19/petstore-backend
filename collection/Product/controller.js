@@ -84,6 +84,38 @@ const getCurrentProduct = asyncHandler(async (req, res) => {
   }
 });
 
+const getNextData = asyncHandler(async (req, res) => {
+  try {
+    const { pid } = req.params;
+
+    const products = await Product.find().sort({ createdAt: 1 });
+
+    if (!products.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Không có sản phẩm nào" });
+    }
+
+    const index = products.findIndex((p) => p._id.toString() === pid);
+
+    if (index === -1) {
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "Không tìm thấy sản phẩm với id này",
+        });
+    }
+
+    const nextIndex = (index + 1) % products.length;
+    const nextProduct = products[nextIndex];
+
+    return res.status(200).json({ success: true, product: nextProduct });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 const changeProduct = asyncHandler(async (req, res) => {
   try {
     const { productId } = req.params;
@@ -268,4 +300,5 @@ module.exports = {
   getCurrentProductByName,
   findProductsByCategory,
   postRating,
+  getNextData,
 };

@@ -10,6 +10,7 @@ router.post(
   productController.createProduct
 );
 router.get("/", productController.getAllProduct);
+router.get("/next/:pid", productController.getNextData);
 router.get(
   "/currentProduct/:prodName",
   productController.getCurrentProductByName
