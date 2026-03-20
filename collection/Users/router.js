@@ -75,6 +75,7 @@ router.put(
   verifyAccessToken,
   UserControls.changeAddress,
 );
+router.put("/change-default-address/:addressIndex", [verifyAccessToken], UserControls.changeDefaultAddress);
 
 router.put("/change-password", UserControls.changePassword);
 router.put("/add-voucher", [verifyAccessToken], UserControls.addVoucher);

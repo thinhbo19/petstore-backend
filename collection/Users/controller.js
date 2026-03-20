@@ -911,13 +911,10 @@ const addAddress = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.Address.push(address);
+    user.Address.push({ address: address, settingDefault: false });
     await user.save();
 
-    res.status(201).json({
-      message: "Address added successfully",
-      data: user.Address,
-    });
+    res.status(201).json({ message: "Address added successfully" });
   } catch (error) {
     res.status(500).json({ message: "An error occurred while adding address" });
   }
@@ -971,13 +968,12 @@ const changeAddress = asyncHandler(async (req, res) => {
     }
 
     // Update the address at the specified index
-    user.Address[addressIndex] = address;
+    user.Address[addressIndex].address = address;
     await user.save();
 
     return res.status(200).json({
       success: true,
       message: "Address updated successfully",
-      data: user.Address,
     });
   } catch (error) {
     console.error("Error updating address:", error);
@@ -988,6 +984,26 @@ const changeAddress = asyncHandler(async (req, res) => {
     });
   }
 });
+const changeDefaultAddress = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { addressIndex } = req.params;
+
+  try {
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.Address.forEach((address) => {
+      address.settingDefault = false;
+    });
+    user.Address[addressIndex].settingDefault = true;
+    await user.save();
+    return res.status(200).json({ message: "Default address changed successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "An error occurred while changing default address" });
+  }
+});
+
 const addVoucher = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
@@ -1058,6 +1074,7 @@ module.exports = {
   addAddress,
   deleteAddress,
   changeAddress,
+  changeDefaultAddress,
   changePassword,
   getCarts,
   shoppingCart,

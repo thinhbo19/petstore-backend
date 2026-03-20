@@ -45,8 +45,9 @@ var userSchema = new mongoose.Schema(
 
     Address: [
       {
-        type: String,
-      },
+        address: { type: String },
+        settingDefault: { type: Boolean, default: false },
+      },  
     ],
     Voucher: [
       {
