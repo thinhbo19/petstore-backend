@@ -55,7 +55,8 @@ router.put("/favoritePet", [verifyAccessToken], UserControls.addFavorite);
 // cart
 router.get("/cart", [verifyAccessToken], UserControls.getCarts);
 router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
-router.delete("/deleteOneCart", UserControls.deleteOneCart);
+router.put("/updateCartQuantity", [verifyAccessToken], UserControls.updateCartQuantity);
+router.delete("/deleteOneCart", [verifyAccessToken], UserControls.deleteOneCart);
 router.delete(
   "/deleteAllCart",
   [verifyAccessToken],

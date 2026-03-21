@@ -845,36 +845,57 @@ const shoppingCart = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred" });
   }
 });
-const deleteOneCart = async (req, res) => {
-  const { id, userID } = req.body;
-
+const updateCartQuantity = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { id, quantity } = req.body;
   try {
-    const user = await User.findById(userID);
-
+    const user = await User.findById(_id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found", success: false });
     }
     const existingID = user.cart.findIndex((item) => item.id.toString() === id);
     if (existingID === -1) {
       return res.status(404).json({
         message: "Item not found in your cart",
+        success: false,
       });
     }
-    user.cart.splice(existingID, 1);
+    user.cart[existingID].quantity = quantity;
     await user.save();
-
     return res.status(200).json({
-      message: "Item removed from your cart",
-      data: user.cart,
-    });
+      message: "Cart quantity updated successfully",
+      success: true,
+    }); 
   } catch (error) {
-    console.error("Error while removing item from cart:", error);
-    return res.status(500).json({
-      message: "An error occurred while removing item from the cart",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: "An error occurred" });
   }
-};
+});
+const deleteOneCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { id } = req.body;
+
+  if (!_id) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+  if (!id) {
+    return res.status(400).json({ success: false, message: "Missing cart item id" });
+  }
+
+  const user = await User.findById(_id);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+
+  const existingID = user.cart.findIndex((item) => String(item.id) === String(id));
+  if (existingID === -1) {
+    return res.status(404).json({ success: false, message: "Item not found in your cart" });
+  }
+
+  user.cart.splice(existingID, 1);
+  await user.save();
+
+  return res.status(200).json({ success: true, message: "Item removed from your cart" });
+});
 const deleteAllCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
 
@@ -882,7 +903,7 @@ const deleteAllCart = asyncHandler(async (req, res) => {
     const user = await User.findById(_id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     user.cart = [];
@@ -890,15 +911,11 @@ const deleteAllCart = asyncHandler(async (req, res) => {
     await user.save();
 
     res.status(200).json({
+      success: true,
       message: "All items removed from your cart",
-      data: user.cart,
     });
   } catch (error) {
-    console.error("Error while deleting all items in cart:", error.message);
-    res.status(500).json({
-      message: "An error occurred while deleting all items in the cart",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: "An error occurred while deleting all items in the cart" });
   }
 });
 
@@ -908,15 +925,15 @@ const addAddress = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(_id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" }); 
     }
 
     user.Address.push({ address: address, settingDefault: false });
     await user.save();
 
-    res.status(201).json({ message: "Address added successfully" });
+    res.status(201).json({ success: true, message: "Address added successfully" });
   } catch (error) {
-    res.status(500).json({ message: "An error occurred while adding address" });
+    res.status(500).json({ success: false, message: "An error occurred while adding address" });
   }
 });
 const deleteAddress = async (req, res) => {
@@ -927,21 +944,18 @@ const deleteAddress = async (req, res) => {
     const user = await User.findById(_id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
     if (addressIndex < 0 || addressIndex >= user.Address.length) {
-      return res.status(400).json({ message: "Invalid address index" });
+      return res.status(400).json({ success: false, message: "Invalid address index" });
     }
     user.Address.splice(addressIndex, 1);
 
     await user.save();
 
-    return res.status(200).json({ message: "Address deleted successfully" });
+    return res.status(200).json({ success: true, message: "Address deleted successfully" });
   } catch (error) {
-    console.error("Error deleting address:", error);
-    return res
-      .status(500)
-      .json({ message: "An error occurred while deleting address" });
+    return res.status(500).json({ success: false, message: "An error occurred while deleting address" });
   }
 };
 const changeAddress = asyncHandler(async (req, res) => {
@@ -1078,6 +1092,7 @@ module.exports = {
   changePassword,
   getCarts,
   shoppingCart,
+  updateCartQuantity,
   deleteOneCart,
   deleteAllCart,
   addVoucher,
