@@ -10,6 +10,9 @@ const typeServiceRouter = require("./collection/TypeService/router");
 const bookingRouter = require("./collection/Booking/router");
 const orderRouter = require("./collection/Order/router");
 const voucherRouter = require("./collection/Voucher/router");
+const systemApiRouter = require("./collection/SystemApi/router");
+const auditLogRouter = require("./collection/AuditLog/router");
+const permissionRouter = require("./collection/Permission/router");
 
 const newsRouter = require("./collection/News/router");
 const { notFound, errHandle } = require("./middlewares/errHandler");
@@ -28,6 +31,9 @@ const initRouter = (app) => {
   app.use("/api/booking", bookingRouter);
   app.use("/api/order", orderRouter);
   app.use("/api/voucher", voucherRouter);
+  app.use("/api/systemApi", systemApiRouter);
+  app.use("/api/audit", auditLogRouter);
+  app.use("/api/permission", permissionRouter);
 
   app.use(notFound);
   app.use(errHandle);

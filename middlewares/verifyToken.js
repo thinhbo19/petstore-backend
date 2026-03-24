@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
+const { isApiAllowedByRole } = require("../service/permissionService");
 
 const verifyAccessToken = asyncHandler(async (req, res, next) => {
   const authorizationHeader = req.headers.authorization;
@@ -12,23 +13,45 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
   }
 
   const token = authorizationHeader.split(" ")[1];
+  let decoded;
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) {
-      if (err.name === "TokenExpiredError") {
-        return res.status(401).json({
-          success: false,
-          message: "Token has expired",
-        });
-      }
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
-        message: "Invalid access token",
+        message: "Token has expired",
       });
     }
-    req.user = decoded;
-    next();
-  });
+    return res.status(401).json({
+      success: false,
+      message: "Invalid access token",
+    });
+  }
+
+  req.user = decoded;
+  const requestPath = `${req.baseUrl || ""}${req.path || ""}`;
+
+  // Always allow Admin to reach permission APIs to avoid locking out RBAC management.
+  if (req.user?.role === "Admin" && requestPath.startsWith("/api/permission")) {
+    return next();
+  }
+
+  const isAllowed = await isApiAllowedByRole(
+    req.user?.role,
+    req.method,
+    requestPath,
+  );
+
+  if (!isAllowed) {
+    return res.status(403).json({
+      success: false,
+      message: "Bạn không có quyền truy cập API này",
+    });
+  }
+
+  next();
 });
 const isAdmin = asyncHandler(async (req, res, next) => {
   const { role } = req.user;
