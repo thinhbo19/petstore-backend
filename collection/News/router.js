@@ -1,11 +1,14 @@
 const uploadCloud = require("../../middlewares/uploadimg");
 const router = require("express").Router();
 const newsControlls = require("./controler");
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const {
+  verifyAccessToken,
+  isStrictAdmin,
+} = require("../../middlewares/verifyToken");
 
 router.post(
   "/addNews",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   uploadCloud.array("image"),
   newsControlls.createNews
 );
@@ -13,11 +16,11 @@ router.post(
 router.get("/", newsControlls.getAllNews);
 router.put(
   "/:nid",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   uploadCloud.array("image"),
   newsControlls.changeNews
 );
-router.delete("/:nid", [verifyAccessToken, isAdmin], newsControlls.deleteNews);
+router.delete("/:nid", [verifyAccessToken, isStrictAdmin], newsControlls.deleteNews);
 router.get("/current/:nName", newsControlls.getCurrentNewsByName);
 router.get("/:nid", newsControlls.getCurrentNews);
 

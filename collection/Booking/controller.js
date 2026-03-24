@@ -39,6 +39,15 @@ const createBooking = asyncHandler(async (req, res) => {
       totalPrice,
       paymentMethod,
     } = req.body;
+    const requesterId = String(req.user?._id || "");
+    const requesterRole = req.user?.role;
+
+    if (requesterRole !== "Admin" && requesterId !== String(user)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to create booking for another user",
+      });
+    }
 
     const newBooking = await Booking.create({
       user,
@@ -85,6 +94,17 @@ const getBookingById = asyncHandler(async (req, res) => {
       });
     }
 
+    const requesterId = String(req.user?._id || "");
+    if (
+      req.user?.role !== "Admin" &&
+      String(booking.user?._id || booking.user) !== requesterId
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       data: booking,
@@ -125,8 +145,17 @@ const getAllBookings = asyncHandler(async (req, res) => {
 
 const getUserBooking = asyncHandler(async (req, res) => {
   const { userID } = req.params;
+  const requesterId = String(req.user?._id || "");
+  const requesterRole = req.user?.role;
 
   try {
+    if (requesterRole !== "Admin" && requesterId !== String(userID)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+    }
+
     const orders = await Booking.find({ user: userID })
       .populate("user", "username email mobile")
       // .populate({
@@ -230,6 +259,15 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       totalPrice,
       paymentMethod,
     } = req.body;
+    const requesterId = String(req.user?._id || "");
+    const requesterRole = req.user?.role;
+
+    if (requesterRole !== "Admin" && requesterId !== String(user)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to create payment URL for another user",
+      });
+    }
 
     inforOrder.user = user;
     inforOrder.petInfo = petInfo;

@@ -6,16 +6,22 @@ const {
   isAdmin,
   isStrictAdmin,
 } = require("../../middlewares/verifyToken");
+const {
+  loginLimiter,
+  registerLimiter,
+  otpLimiter,
+  resetPasswordLimiter,
+} = require("../../middlewares/rateLimiter");
 
 router.post(
   "/create-new-account",
   [verifyAccessToken, isStrictAdmin],
   UserControls.createAccount,
 );
-router.post("/register", UserControls.register);
-router.post("/login", UserControls.login);
-router.post("/verify-otp", UserControls.activateAccount);
-router.post("/resend-otp", UserControls.resendOTP);
+router.post("/register", registerLimiter, UserControls.register);
+router.post("/login", loginLimiter, UserControls.login);
+router.post("/verify-otp", otpLimiter, UserControls.activateAccount);
+router.post("/resend-otp", otpLimiter, UserControls.resendOTP);
 router.get("/logout", UserControls.logout);
 //get user
 router.get("/allUser", [verifyAccessToken, isStrictAdmin], UserControls.getallAccount);
@@ -27,9 +33,9 @@ router.get(
 );
 //password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
-router.post("/forgotpassword", UserControls.forgotPassword);
-router.post("/resetpassword", UserControls.resetPassword);
-router.post("/verify-reset-token", UserControls.verifyResetToken);
+router.post("/forgotpassword", resetPasswordLimiter, UserControls.forgotPassword);
+router.post("/resetpassword", resetPasswordLimiter, UserControls.resetPassword);
+router.post("/verify-reset-token", resetPasswordLimiter, UserControls.verifyResetToken);
 //delete user
 router.delete(
   "/delete-user/:uid",
@@ -82,7 +88,7 @@ router.put(
 );
 router.put("/change-default-address/:addressIndex", [verifyAccessToken], UserControls.changeDefaultAddress);
 
-router.put("/change-password", UserControls.changePassword);
+router.put("/change-password", [verifyAccessToken], UserControls.changePassword);
 router.put("/add-voucher", [verifyAccessToken], UserControls.addVoucher);
 router.get("/vouchers", [verifyAccessToken], UserControls.getVouchers);
 

@@ -37,6 +37,33 @@ paths:
     get:
       summary: Lấy danh sách tất cả người dùng
       tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [Admin, Staff, User]
+        - in: query
+          name: isBlocked
+          schema:
+            type: boolean
       responses:
         '200':
           description: Danh sách người dùng
@@ -76,7 +103,7 @@ paths:
                   type: string
                 role:
                   type: string
-                  enum: [admin, user]
+                  enum: [Admin, Staff, User]
                 isBlocked:
                   type: boolean
                   default: false
@@ -141,13 +168,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [userId, role]
+              required: [userId, newRole]
               properties:
                 userId:
                   type: string
-                role:
+                newRole:
                   type: string
-                  enum: [admin, user]
+                  enum: [Admin, Staff, User]
       responses:
         '200':
           description: Thay đổi vai trò thành công

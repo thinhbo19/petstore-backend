@@ -339,7 +339,8 @@ const filterPricePet = asyncHandler(async (req, res) => {
 
 const postRating = asyncHandler(async (req, res) => {
   try {
-    const { postBy, star, comment } = req.body;
+    const { star, comment } = req.body;
+    const postBy = req.user?._id;
 
     const feedback_img = req.files.map((file) => file.path);
 
@@ -416,7 +417,7 @@ const postRating = asyncHandler(async (req, res) => {
 const deleteRating = asyncHandler(async (req, res) => {
   try {
     const { petId } = req.params;
-    const { postBy } = req.body;
+    const postBy = req.user?._id;
 
     const pet = await Pets.findById(petId); // Tìm thú cưng theo ID
 
@@ -432,7 +433,7 @@ const deleteRating = asyncHandler(async (req, res) => {
     );
 
     console.log(existingRatingIndex);
-    if (!existingRatingIndex) {
+    if (existingRatingIndex === -1) {
       return res.status(404).json({
         success: false,
         message: "Rating not found",

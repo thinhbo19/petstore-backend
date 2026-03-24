@@ -1,18 +1,21 @@
 const uploadCloud = require("../../middlewares/uploadimg");
 const router = require("express").Router();
 const petsControlls = require("./controller");
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const {
+  verifyAccessToken,
+  isStrictAdmin,
+} = require("../../middlewares/verifyToken");
 
 router.post(
   "/addPets",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   uploadCloud.array("imgPet"),
   petsControlls.createNewPets
 );
 router.get("/allPets", petsControlls.getAllPets);
 router.get("/next/:pid", petsControlls.getNextData);
-router.delete("/:pid", [verifyAccessToken, isAdmin], petsControlls.deletePet);
-router.put("/:pid", [verifyAccessToken, isAdmin], petsControlls.changePets);
+router.delete("/:pid", [verifyAccessToken, isStrictAdmin], petsControlls.deletePet);
+router.put("/:pid", [verifyAccessToken, isStrictAdmin], petsControlls.changePets);
 router.get("/current/:pid", petsControlls.getCurrentPets);
 router.get("/currentPet/:pName", petsControlls.getCurrentPetsByName);
 
@@ -24,9 +27,10 @@ router.get("/filterPrice/:breed", petsControlls.filterPricePet);
 //rating
 router.post(
   "/rating/:petId",
+  [verifyAccessToken],
   uploadCloud.array("feedback_img"),
   petsControlls.postRating
 );
-router.delete("/rating/:petId", petsControlls.deleteRating);
+router.delete("/rating/:petId", [verifyAccessToken], petsControlls.deleteRating);
 
 module.exports = router;

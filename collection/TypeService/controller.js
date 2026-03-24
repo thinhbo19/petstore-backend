@@ -190,7 +190,8 @@ const getServiceById = asyncHandler(async (req, res) => {
 
 const postRating = asyncHandler(async (req, res) => {
   try {
-    const { postBy, star, comment } = req.body;
+    const { star, comment } = req.body;
+    const postBy = req.user?._id;
 
     const feedback_img = req.files.map((file) => file.path);
 
@@ -266,7 +267,7 @@ const postRating = asyncHandler(async (req, res) => {
 const deleteRating = asyncHandler(async (req, res) => {
   try {
     const { serId } = req.params;
-    const { postBy } = req.body;
+    const postBy = req.user?._id;
 
     const service = await TypeService.findById(serId); // Tìm thú cưng theo ID
 
@@ -281,7 +282,7 @@ const deleteRating = asyncHandler(async (req, res) => {
       (r) => r.postBy.toString() === postBy
     );
 
-    if (!existingRatingIndex) {
+    if (existingRatingIndex === -1) {
       return res.status(404).json({
         success: false,
         message: "Rating not found",

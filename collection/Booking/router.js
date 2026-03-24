@@ -1,28 +1,31 @@
 const router = require("express").Router();
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const {
+  verifyAccessToken,
+  isStrictAdmin,
+} = require("../../middlewares/verifyToken");
 const BookingControll = require("./controller");
 const uploadCloud = require("../../middlewares/uploadimg");
 
-router.post("/", uploadCloud.array("images"), BookingControll.createBooking);
-router.get("/", BookingControll.getAllBookings);
+router.post("/", [verifyAccessToken], uploadCloud.array("images"), BookingControll.createBooking);
+router.get("/", [verifyAccessToken, isStrictAdmin], BookingControll.getAllBookings);
 router.get(
   "/totalPrice",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   BookingControll.totalPriceBooking
 );
 router.get(
   "/most-purchased",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   BookingControll.mostPurchasedService
 );
 router.get(
   "/total-sales-by-month/:year",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   BookingControll.totalSalesByMonthBooking
 );
 router.get(
   "/most-users",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   BookingControll.topUsersByBooking
 );
 router.get("/:id", [verifyAccessToken], BookingControll.getBookingById);
@@ -31,15 +34,16 @@ router.get(
   [verifyAccessToken],
   BookingControll.getUserBooking
 );
-router.put("/status/:id", BookingControll.updateBookingStatus);
+router.put("/status/:id", [verifyAccessToken, isStrictAdmin], BookingControll.updateBookingStatus);
 router.delete(
   "/:id",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   BookingControll.deleteBooking
 );
 
 router.post(
   "/createUrl",
+  [verifyAccessToken],
   uploadCloud.array("images"),
   BookingControll.handlePaymentUrl
 );

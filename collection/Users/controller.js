@@ -646,7 +646,8 @@ const verifyResetToken = asyncHandler(async (req, res) => {
 });
 
 const changePassword = async (req, res) => {
-  const { userId, currentPassword, newPassword, confirmPassword } = req.body;
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  const userId = req.user?._id;
 
   const user = await User.findById(userId);
   if (!user) {
@@ -666,7 +667,7 @@ const changePassword = async (req, res) => {
 
   await user.save();
 
-  res.status(200).json({ message: "Password updated successfully" });
+  res.status(200).json({ success: true, message: "Password updated successfully" });
 };
 const deleteUser = asyncHandler(async (req, res) => {
   try {

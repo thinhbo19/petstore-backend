@@ -1,11 +1,11 @@
 const router = require("express").Router();
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const { verifyAccessToken, isStrictAdmin } = require("../../middlewares/verifyToken");
 const TypeServiceControll = require("./controller");
 const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post(
   "/",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   TypeServiceControll.createService
 );
 
@@ -18,18 +18,19 @@ router.get("/:serviceID", TypeServiceControll.getServiceById);
 
 router.put(
   "/change/:serviceID",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   TypeServiceControll.updateService
 );
 
 router.delete(
   "/:serviceID",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   TypeServiceControll.deleteService
 );
 
 router.post(
   "/rating/:serId",
+  [verifyAccessToken],
   uploadCloud.array("feedback_img"),
   TypeServiceControll.postRating
 );

@@ -34,11 +34,20 @@ const createOrder = asyncHandler(async (req, res) => {
   try {
     const { products, paymentMethod, coupon, address, note, orderBy } =
       req.body;
+    const requesterId = String(req.user?._id || "");
+    const requesterRole = req.user?.role;
 
     if (!products || !address || !orderBy) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
+      });
+    }
+
+    if (requesterRole !== "Admin" && requesterId !== String(orderBy)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to create order for another user",
       });
     }
 
@@ -261,8 +270,17 @@ const getOneOrder = asyncHandler(async (req, res) => {
 });
 const getUserOrder = asyncHandler(async (req, res) => {
   const { userID } = req.params;
+  const requesterId = String(req.user?._id || "");
+  const requesterRole = req.user?.role;
 
   try {
+    if (requesterRole !== "Admin" && requesterId !== String(userID)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+    }
+
     const orders = await Order.find({ OrderBy: userID })
       .populate("OrderBy", "username email mobile")
       .populate({
@@ -304,10 +322,64 @@ const updateStatusOrder = asyncHandler(async (req, res) => {
     response: response ? response : "false",
   });
 });
+
+const getOneOrderByUser = asyncHandler(async (req, res) => {
+  const { orderID } = req.params;
+  const requesterId = String(req.user?._id || "");
+  const requesterRole = req.user?.role;
+
+  try {
+    const order = await Order.findById(orderID)
+      .populate("OrderBy", "username email mobile")
+      .populate({
+        path: "coupon",
+        model: "Voucher",
+        select: "nameVoucher",
+      })
+      .exec();
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "No order found",
+      });
+    }
+
+    if (
+      requesterRole !== "Admin" &&
+      String(order.OrderBy?._id || order.OrderBy) !== requesterId
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: order,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving order",
+      error: error.message,
+    });
+  }
+});
 const handlePaymentUrl = asyncHandler(async (req, res) => {
   try {
     const { orderBy, products, coupon, note, address, paymentMethod } =
       req.body;
+    const requesterId = String(req.user?._id || "");
+    const requesterRole = req.user?.role;
+
+    if (requesterRole !== "Admin" && requesterId !== String(orderBy)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to create payment URL for another user",
+      });
+    }
 
     const priceTotal = await orderService.returnTotalPrice({ products });
 
@@ -697,6 +769,7 @@ module.exports = {
   getAllOrders,
   getOneOrder,
   getUserOrder,
+  getOneOrderByUser,
   deleteOrder,
   updateStatusOrder,
   handlePaymentUrl,

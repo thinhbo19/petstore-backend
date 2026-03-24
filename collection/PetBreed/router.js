@@ -1,24 +1,24 @@
 const router = require("express").Router();
 const petBreedControls = require("./controller");
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const { verifyAccessToken, isStrictAdmin } = require("../../middlewares/verifyToken");
 const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post(
   "/addNewBreed",
   uploadCloud.array("imgBreed"),
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   petBreedControls.createNewBreed
 );
 router.get("/getAllBreed", petBreedControls.getAllPetBreed);
 router.get("/getCurrentBreed/:bid", petBreedControls.getCurrentBreed);
 router.put(
   "/changeBreed/:bid",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   petBreedControls.changePetBreed
 );
 router.delete(
   "/:bid",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   petBreedControls.deletePetBreed
 );
 router.get("/getBreedBySpecies/:species", petBreedControls.getBreedBySpecies);

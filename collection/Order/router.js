@@ -1,46 +1,49 @@
 const router = require("express").Router();
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const {
+  verifyAccessToken,
+  isStrictAdmin,
+} = require("../../middlewares/verifyToken");
 const OrderControl = require("./controller");
 
-router.post("/order", OrderControl.createOrder);
-router.get("/", [verifyAccessToken], OrderControl.getAllOrders);
+router.post("/order", [verifyAccessToken], OrderControl.createOrder);
+router.get("/", [verifyAccessToken, isStrictAdmin], OrderControl.getAllOrders);
 router.get(
   "/totalPrice",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.totalPriceOrder
 );
 router.get(
   "/most-purchased",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.mostPurchasedProduct
 );
 router.get(
   "/most-users",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.topUsersByOrders
 );
 router.get(
   "/total-sales-by-month/:year",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.totalSalesByMonth
 );
-router.get("/:orderID", [verifyAccessToken, isAdmin], OrderControl.getOneOrder);
+router.get("/:orderID", [verifyAccessToken, isStrictAdmin], OrderControl.getOneOrder);
 router.get("/user/:userID", [verifyAccessToken], OrderControl.getUserOrder);
-router.get("/userOne/:orderID", [verifyAccessToken], OrderControl.getOneOrder);
+router.get("/userOne/:orderID", [verifyAccessToken], OrderControl.getOneOrderByUser);
 
 router.delete(
   "/:orderID",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.deleteOrder
 );
 router.patch(
   "/update/:orderID",
-  [verifyAccessToken],
+  [verifyAccessToken, isStrictAdmin],
   OrderControl.updateStatusOrder
 );
-router.post("/createUrl", OrderControl.handlePaymentUrl);
+router.post("/createUrl", [verifyAccessToken], OrderControl.handlePaymentUrl);
 router.get("/vnpay/vnpay_return", OrderControl.handleVnPayReturn);
 
-router.post("/momopay", OrderControl.hanldMoMoPay);
+router.post("/momopay", [verifyAccessToken], OrderControl.hanldMoMoPay);
 
 module.exports = router;

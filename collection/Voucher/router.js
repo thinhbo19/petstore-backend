@@ -1,16 +1,16 @@
 const router = require("express").Router();
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const { verifyAccessToken, isStrictAdmin } = require("../../middlewares/verifyToken");
 const voucherController = require("./controller");
 
-router.post("/", [verifyAccessToken, isAdmin], voucherController.addVoucher);
+router.post("/", [verifyAccessToken, isStrictAdmin], voucherController.addVoucher);
 router.delete(
   "/:id",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   voucherController.deleteVoucher
 );
 router.put(
   "/:id",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   voucherController.updateVoucher
 );
 router.get("/", voucherController.getAllVouchers);
