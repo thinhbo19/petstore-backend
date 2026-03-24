@@ -1,11 +1,15 @@
 const router = require("express").Router();
 const uploadCloud = require("../../middlewares/uploadimg");
 const UserControls = require("./controller");
-const { verifyAccessToken, isAdmin } = require("../../middlewares/verifyToken");
+const {
+  verifyAccessToken,
+  isAdmin,
+  isStrictAdmin,
+} = require("../../middlewares/verifyToken");
 
 router.post(
   "/create-new-account",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   UserControls.createAccount,
 );
 router.post("/register", UserControls.register);
@@ -14,7 +18,7 @@ router.post("/verify-otp", UserControls.activateAccount);
 router.post("/resend-otp", UserControls.resendOTP);
 router.get("/logout", UserControls.logout);
 //get user
-router.get("/allUser", UserControls.getallAccount);
+router.get("/allUser", [verifyAccessToken, isStrictAdmin], UserControls.getallAccount);
 router.get("/current", verifyAccessToken, UserControls.getOneUser);
 router.get(
   "/userCurrent",
@@ -29,7 +33,7 @@ router.post("/verify-reset-token", UserControls.verifyResetToken);
 //delete user
 router.delete(
   "/delete-user/:uid",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   UserControls.deleteUser,
 );
 router.patch(
@@ -40,12 +44,12 @@ router.patch(
 );
 router.put(
   "/adminUpdate/:userId",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   UserControls.blockAccount,
 );
 router.patch(
   "/changeRole",
-  [verifyAccessToken, isAdmin],
+  [verifyAccessToken, isStrictAdmin],
   UserControls.changeRole,
 );
 //favorite

@@ -40,7 +40,19 @@ const isAdmin = asyncHandler(async (req, res, next) => {
   next();
 });
 
+const isStrictAdmin = asyncHandler(async (req, res, next) => {
+  const { role } = req.user;
+  if (role !== "Admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Only Admin is allowed to perform this action",
+    });
+  }
+  next();
+});
+
 module.exports = {
   verifyAccessToken,
   isAdmin,
+  isStrictAdmin,
 };

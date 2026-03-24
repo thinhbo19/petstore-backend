@@ -1,4 +1,5 @@
 const User = require("./model");
+const AuditLog = require("../AuditLog/model");
 const Pet = require("../Pets/model");
 const Product = require("../Product/model");
 const Voucher = require("../Voucher/model");
@@ -55,9 +56,30 @@ const getLeastBusyStaffId = async () => {
   return selectedStaffId;
 };
 
+const countActiveAdmins = async () =>
+  User.countDocuments({
+    role: "Admin",
+    isDeleted: { $ne: true },
+  });
+
+const createAuditLog = async (req, action, targetUser, details = {}) => {
+  try {
+    await AuditLog.create({
+      actorId: req.user?._id,
+      actorRole: req.user?.role || "Unknown",
+      action,
+      targetUserId: targetUser?._id,
+      targetEmail: targetUser?.email,
+      details,
+    });
+  } catch (error) {
+    console.error("Failed to write audit log:", error.message);
+  }
+};
+
 const createAccount = asyncHandler(async (req, res) => {
   try {
-    const { email, password, username, role, isBlocked } = req.body;
+    const { email, password, username, mobile, role, isBlocked } = req.body;
     if (!email || !password || !username || !role) {
       return res.status(400).json({
         success: false,
@@ -86,11 +108,16 @@ const createAccount = asyncHandler(async (req, res) => {
         email: email,
         password: password,
         username: username,
-        isBlocked: isBlocked,
+        isBlocked: typeof isBlocked === "boolean" ? isBlocked : false,
         role: role,
+        mobile: mobile,
         assignedStaff,
       });
       if (newUser) {
+        await createAuditLog(req, "CREATE_USER", newUser, {
+          createdRole: role,
+          isBlocked: newUser.isBlocked,
+        });
         return res.status(200).json({
           success: true,
           message: "Create account successful!",
@@ -330,7 +357,7 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email }).select(
+    const user = await User.findOne({ email, isDeleted: { $ne: true } }).select(
       "_id username Avatar email mobile role Address isBlocked date assignedStaff",
     );
 
@@ -340,7 +367,10 @@ const login = asyncHandler(async (req, res) => {
         message: "User not found",
       });
     }
-    const userWithPassword = await User.findOne({ email });
+    const userWithPassword = await User.findOne({
+      email,
+      isDeleted: { $ne: true },
+    });
     if (userWithPassword.isBlocked) {
       return res.status(403).json({
         success: false,
@@ -430,10 +460,54 @@ const logout = asyncHandler(async (req, res) => {
 });
 const getallAccount = asyncHandler(async (req, res) => {
   try {
-    const user = await User.find().select("-refreshToken -password");
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+    const search = (req.query.search || "").trim();
+    const role = req.query.role;
+    const isBlocked = req.query.isBlocked;
+    const includeDeleted = req.query.includeDeleted === "true";
+
+    const query = {};
+
+    if (!includeDeleted) {
+      query.isDeleted = { $ne: true };
+    }
+
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (role) {
+      query.role = role;
+    }
+
+    if (typeof isBlocked !== "undefined" && isBlocked !== "") {
+      query.isBlocked = isBlocked === "true";
+    }
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select("-refreshToken -password")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
     return res.status(200).json({
       success: true,
-      users: user,
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     throw new Error(error);
@@ -444,9 +518,15 @@ const getOneUser = asyncHandler(async (req, res) => {
   const user = await User.findById(_id).select(
     "-refreshToken -password -role -createdAt -updatedAt -passwordChangeAt -passwordResetExpire -passwordResetToken",
   );
+  if (!user || user.isDeleted) {
+    return res.status(404).json({
+      success: false,
+      rs: "User not found",
+    });
+  }
   return res.status(200).json({
-    success: user ? true : false,
-    rs: user ? user : "User not found",
+    success: true,
+    rs: user,
   });
 });
 const getUserMess = asyncHandler(async (req, res) => {
@@ -461,7 +541,7 @@ const getUserMess = asyncHandler(async (req, res) => {
     const user = await User.findById(_id).select(
       "-refreshToken -password -role",
     );
-    if (!user) {
+    if (!user || user.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Không tìm thấy người dùng",
@@ -505,7 +585,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
       message: "Missing email!",
     });
   }
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email, isDeleted: { $ne: true } });
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -591,13 +671,49 @@ const changePassword = async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
   try {
     const { uid } = req.params;
+    const actorId = String(req.user?._id || "");
     if (!uid) {
       return res.status(400).json({ success: false, message: "Missing Id!!" });
     }
-    const user = await User.findByIdAndDelete(uid);
+
+    if (actorId === String(uid)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account",
+      });
+    }
+
+    const user = await User.findById(uid);
+    if (!user || user.isDeleted) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.role === "Admin") {
+      const adminCount = await countActiveAdmins();
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot delete the last active admin account",
+        });
+      }
+    }
+
+    user.isDeleted = true;
+    user.deletedAt = new Date();
+    user.isBlocked = true;
+    user.refreshToken = "";
+    await user.save();
+
+    await createAuditLog(req, "SOFT_DELETE_USER", user, {
+      deletedAt: user.deletedAt,
+    });
+
     return res.status(200).json({
       success: true,
-      message: `User with email ${user.email} has been deleted`,
+      message: `User with email ${user.email} has been archived`,
     });
   } catch (error) {
     console.error("Error in deleting user:", error);
@@ -637,15 +753,40 @@ const updateUserByUser = asyncHandler(async (req, res) => {
 const blockAccount = asyncHandler(async (req, res) => {
   try {
     const { userId } = req.params;
+    const actorId = String(req.user?._id || "");
     if (!userId) {
       return res
         .status(400)
         .json({ success: false, message: "Missing user ID" });
     }
 
+    if (actorId === String(userId) && req.body?.isBlocked === true) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot block your own account",
+      });
+    }
+
     let updateData = req.body;
     if (req.file && req.file.path) {
       updateData.Avatar = req.file.path;
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser || targetUser.isDeleted) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (targetUser.role === "Admin" && updateData?.isBlocked === true) {
+      const adminCount = await countActiveAdmins();
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot block the last active admin account",
+        });
+      }
     }
 
     const user = await User.findByIdAndUpdate(userId, updateData, {
@@ -657,6 +798,10 @@ const blockAccount = asyncHandler(async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    await createAuditLog(req, "UPDATE_USER", user, {
+      changedFields: Object.keys(updateData || {}),
+    });
+
     return res.status(200).json({ success: true, updateUser: user });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -665,24 +810,51 @@ const blockAccount = asyncHandler(async (req, res) => {
 const changeRole = asyncHandler(async (req, res) => {
   try {
     const { userId, newRole } = req.body;
+    const actorId = String(req.user?._id || "");
+
+    if (actorId === String(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot change your own role",
+      });
+    }
+
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found!!" });
+    if (!user || user.isDeleted) {
+      return res.status(404).json({ success: false, message: "User not found!!" });
     }
     const validRoles = ["Admin", "User", "Staff"];
     if (!validRoles.includes(newRole)) {
-      return res.status(400).json({ message: "Invalid role" });
+      return res.status(400).json({ success: false, message: "Invalid role" });
     }
 
+    if (user.role === "Admin" && newRole !== "Admin") {
+      const adminCount = await countActiveAdmins();
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot change role of the last active admin",
+        });
+      }
+    }
+
+    const previousRole = user.role;
     user.role = newRole;
     const updatedUser = await user.save();
 
+    await createAuditLog(req, "CHANGE_ROLE", updatedUser, {
+      from: previousRole,
+      to: newRole,
+    });
+
     res.status(200).json({
+      success: true,
       message: "Change role successfully",
       user: updatedUser,
     });
   } catch (error) {
     res.status(500).json({
+      success: false,
       message: "Error when change",
       error: error.message,
     });
