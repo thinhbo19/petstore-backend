@@ -32,6 +32,11 @@ var userSchema = new mongoose.Schema(
       default: "User",
       enum: ["Admin", "User", "Staff"],
     },
+    assignedStaff: {
+      type: mongoose.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     cart: [
       {
         id: { type: mongoose.Types.ObjectId },

@@ -10,6 +10,10 @@ var messSchema = new mongoose.Schema(
     text: {
       type: String,
     },
+    image: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

@@ -5,6 +5,8 @@ const initRouters = require("./router");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
+const ChatModel = require("./collection/Chat/model");
 const {
   swaggerUi,
   swaggerSpec,
@@ -111,37 +113,119 @@ const io = new Server(server, {
 
 // Danh sách người dùng trực tuyến
 let onlineUser = [];
+const extractObjectId = (value) => {
+  if (!value) return "";
+  const text = String(value).trim();
+  const objectIdMatch = text.match(/ObjectId\(['"]([a-fA-F0-9]{24})['"]\)/);
+  if (objectIdMatch) return objectIdMatch[1];
+  const plainIdMatch = text.match(/\b([a-fA-F0-9]{24})\b/);
+  if (plainIdMatch) return plainIdMatch[1];
+  return "";
+};
+const normalizeId = (id) => {
+  if (!id) return "";
+  if (typeof id === "string") {
+    return extractObjectId(id) || id.trim();
+  }
+  if (typeof id === "number" || typeof id === "boolean" || typeof id === "bigint")
+    return String(id);
+  if (typeof id === "object") {
+    if (typeof id.toHexString === "function") return id.toHexString();
+    if (typeof id.$oid === "string") return extractObjectId(id.$oid) || id.$oid;
+    if (id._id && id._id !== id) return normalizeId(id._id);
+    if (id.id && id.id !== id && typeof id.id !== "function") {
+      const nested = normalizeId(id.id);
+      if (nested && nested !== "[object Object]") return nested;
+    }
+    if (typeof id.toString === "function") {
+      const asText = id.toString();
+      if (asText && asText !== "[object Object]") return asText;
+    }
+    return "";
+  }
+  return String(id);
+};
+const hasMember = (members = [], userId) =>
+  members.some((memberId) => normalizeId(memberId) === normalizeId(userId));
+
+io.use((socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.split(" ")[1];
+
+    if (!token) {
+      return next(new Error("Unauthorized: missing token"));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = decoded;
+    return next();
+  } catch (error) {
+    return next(new Error("Unauthorized: invalid token"));
+  }
+});
 
 // Xử lý sự kiện kết nối từ client
 io.on("connection", (socket) => {
-  console.log("new connect", socket.id);
+  const userId = normalizeId(socket.user?._id);
+  console.log("new connect", socket.id, userId);
 
-  // Thêm người dùng mới vào danh sách onlineUser khi có sự kiện "addNewUser"
-  socket.on("addNewUser", (userId) => {
-    if (!onlineUser.some((user) => user.userId === userId)) {
-      onlineUser.push({
-        userId,
-        socketId: socket.id,
-      });
-    }
-
-    // Phát lại danh sách người dùng trực tuyến cho tất cả client
-    io.emit("getOnlineUser", onlineUser);
-  });
+  const existedIndex = onlineUser.findIndex(
+    (user) => normalizeId(user.userId) === userId,
+  );
+  if (existedIndex >= 0) {
+    // Replace stale socket mapping if same user reconnects.
+    onlineUser[existedIndex] = { userId, socketId: socket.id };
+  } else if (userId) {
+    onlineUser.push({
+      userId,
+      socketId: socket.id,
+    });
+  }
+  io.emit("getOnlineUser", onlineUser);
 
   // Xử lý sự kiện gửi tin nhắn từ client
-  socket.on("sendMess", (message) => {
-    const user = onlineUser.find((user) => user.userId === message.recipientId);
-    if (user) {
-      // Gửi tin nhắn cho người nhận
-      io.to(user.socketId).emit("getMess", message);
-      // Gửi thông báo cho người nhận
-      io.to(user.socketId).emit("getNotification", {
-        senderId: message.senderId,
-        isRead: false,
-        chatId: message.chatId,
-        date: new Date(),
-      });
+  socket.on("sendMess", async (message) => {
+    try {
+      const senderId = normalizeId(socket.user?._id);
+      if (!senderId) return;
+      const messageSenderId = normalizeId(message?.senderId);
+      if (
+        !message ||
+        !message.chatId ||
+        !messageSenderId ||
+        messageSenderId !== senderId
+      ) {
+        return;
+      }
+
+      const chat = await ChatModel.findById(message.chatId);
+      if (!chat) return;
+      if (
+        !hasMember(chat.members, messageSenderId)
+      ) {
+        return;
+      }
+
+      const receiverIds = chat.members
+        .map((memberId) => normalizeId(memberId))
+        .filter((memberId) => memberId && memberId !== senderId);
+
+      const receivers = onlineUser.filter((user) =>
+        receiverIds.includes(normalizeId(user.userId)),
+      );
+      for (const receiver of receivers) {
+        io.to(receiver.socketId).emit("getMess", message);
+        io.to(receiver.socketId).emit("getNotification", {
+          senderId: message.senderId,
+          isRead: false,
+          chatId: message.chatId,
+          date: new Date(),
+        });
+      }
+    } catch (error) {
+      console.error("Socket sendMess error:", error.message);
     }
   });
 

@@ -16,6 +16,45 @@ const {
   generateActivationEmail,
 } = require("../../service/emailTemplateService");
 
+const getLeastBusyStaffId = async () => {
+  const staffs = await User.find({ role: "Staff" }).select("_id");
+  if (!staffs.length) return null;
+
+  const staffIds = staffs.map((staff) => staff._id);
+  const assignmentStats = await User.aggregate([
+    {
+      $match: {
+        role: "User",
+        assignedStaff: { $in: staffIds },
+      },
+    },
+    {
+      $group: {
+        _id: "$assignedStaff",
+        totalCustomers: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const assignmentMap = assignmentStats.reduce((acc, item) => {
+    acc[item._id.toString()] = item.totalCustomers;
+    return acc;
+  }, {});
+
+  let selectedStaffId = staffs[0]._id;
+  let minCustomers = assignmentMap[selectedStaffId.toString()] || 0;
+
+  for (const staff of staffs) {
+    const total = assignmentMap[staff._id.toString()] || 0;
+    if (total < minCustomers) {
+      minCustomers = total;
+      selectedStaffId = staff._id;
+    }
+  }
+
+  return selectedStaffId;
+};
+
 const createAccount = asyncHandler(async (req, res) => {
   try {
     const { email, password, username, role, isBlocked } = req.body;
@@ -40,12 +79,16 @@ const createAccount = asyncHandler(async (req, res) => {
         message: "User with this email already exists",
       });
     } else {
+      const assignedStaff =
+        role === "User" ? await getLeastBusyStaffId() : null;
+
       const newUser = await User.create({
         email: email,
         password: password,
         username: username,
         isBlocked: isBlocked,
         role: role,
+        assignedStaff,
       });
       if (newUser) {
         return res.status(200).json({
@@ -102,12 +145,14 @@ const register = asyncHandler(async (req, res) => {
       const otpExpiry = new Date();
       otpExpiry.setMinutes(otpExpiry.getMinutes() + 5); // OTP expires in 5 minutes
 
+      const assignedStaff = await getLeastBusyStaffId();
       const newUser = await User.create({
         email: email,
         password: password,
         username: username,
         mobile: mobile,
         isBlocked: true,
+        assignedStaff,
         otp: {
           code: otp,
           expiresAt: otpExpiry,
@@ -286,7 +331,7 @@ const login = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findOne({ email }).select(
-      "_id username Avatar email mobile role Address isBlocked date",
+      "_id username Avatar email mobile role Address isBlocked date assignedStaff",
     );
 
     if (!user) {
@@ -323,6 +368,7 @@ const login = asyncHandler(async (req, res) => {
       Address: user.Address,
       isBlocked: user.isBlocked,
       date: user.date,
+      assignedStaff: user.assignedStaff,
     };
 
     const accessToken = generateAccessToken(user._id, user.role);
@@ -345,7 +391,7 @@ const login = asyncHandler(async (req, res) => {
     } else if (userData.role === "User") {
       url = "/";
     } else if (userData.role === "Staff") {
-      url = "/Staff";
+      url = "/customer-service-by-staff";
     }
 
     return res.status(200).json({
