@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
 const { isApiAllowedByRole } = require("../service/permissionService");
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 const verifyAccessToken = asyncHandler(async (req, res, next) => {
   const authorizationHeader = req.headers.authorization;
@@ -32,6 +33,17 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
 
   req.user = decoded;
   const requestPath = `${req.baseUrl || ""}${req.path || ""}`;
+
+  if (!SAFE_METHODS.has(String(req.method).toUpperCase())) {
+    const csrfFromCookie = req.cookies?.csrfToken;
+    const csrfFromHeader = req.headers["x-csrf-token"];
+    if (!csrfFromCookie || !csrfFromHeader || csrfFromCookie !== csrfFromHeader) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid CSRF token",
+      });
+    }
+  }
 
   // Always allow Admin to reach permission APIs to avoid locking out RBAC management.
   if (req.user?.role === "Admin" && requestPath.startsWith("/api/permission")) {

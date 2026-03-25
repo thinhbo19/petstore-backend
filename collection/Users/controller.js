@@ -17,6 +17,44 @@ const {
   generateActivationEmail,
 } = require("../../service/emailTemplateService");
 
+const refreshCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+const csrfCookieOptions = {
+  httpOnly: false,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+const issueCsrfToken = (res) => {
+  const csrfToken = crypto.randomBytes(24).toString("hex");
+  res.cookie("csrfToken", csrfToken, csrfCookieOptions);
+  return csrfToken;
+};
+
+const buildUserData = (user) => ({
+  _id: user._id,
+  username: user.username,
+  Avatar: user.Avatar,
+  email: user.email,
+  mobile: user.mobile,
+  role: user.role,
+  Address: user.Address,
+  isBlocked: user.isBlocked,
+  date: user.date,
+  assignedStaff: user.assignedStaff,
+});
+
+const getRedirectUrlByRole = (role) => {
+  if (role === "Admin") return "/dashboard";
+  if (role === "User") return "/";
+  if (role === "Staff") return "/customer-service-by-staff";
+  return "/";
+};
+
 const getLeastBusyStaffId = async () => {
   const staffs = await User.find({ role: "Staff" }).select("_id");
   if (!staffs.length) return null;
@@ -388,18 +426,7 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const userData = {
-      _id: user._id,
-      username: user.username,
-      Avatar: user.Avatar,
-      email: user.email,
-      mobile: user.mobile,
-      role: user.role,
-      Address: user.Address,
-      isBlocked: user.isBlocked,
-      date: user.date,
-      assignedStaff: user.assignedStaff,
-    };
+    const userData = buildUserData(user);
 
     const accessToken = generateAccessToken(user._id, user.role);
     const newRefreshToken = generateRefreshToken(user._id);
@@ -410,19 +437,9 @@ const login = asyncHandler(async (req, res) => {
       { new: true },
     );
 
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    let url;
-    if (userData.role === "Admin") {
-      url = "/dashboard";
-    } else if (userData.role === "User") {
-      url = "/";
-    } else if (userData.role === "Staff") {
-      url = "/customer-service-by-staff";
-    }
+    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
+    issueCsrfToken(res);
+    const url = getRedirectUrlByRole(userData.role);
 
     return res.status(200).json({
       success: true,
@@ -442,16 +459,22 @@ const login = asyncHandler(async (req, res) => {
 
 const logout = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
-  if (!cookie || !cookie.refreshToken)
-    throw new Error("You are not logged in!!");
-  await User.findOneAndUpdate(
-    { refreshToken: cookie.refreshToken },
-    { refreshToken: "" },
-    { new: true },
-  );
+  if (cookie?.refreshToken) {
+    await User.findOneAndUpdate(
+      { refreshToken: cookie.refreshToken },
+      { refreshToken: "" },
+      { new: true },
+    );
+  }
   res.clearCookie("refreshToken", {
-    httpOnly: true,
-    secure: true,
+    httpOnly: refreshCookieOptions.httpOnly,
+    sameSite: refreshCookieOptions.sameSite,
+    secure: refreshCookieOptions.secure,
+  });
+  res.clearCookie("csrfToken", {
+    httpOnly: csrfCookieOptions.httpOnly,
+    sameSite: csrfCookieOptions.sameSite,
+    secure: csrfCookieOptions.secure,
   });
   return res.status(200).json({
     success: true,
@@ -562,19 +585,44 @@ const getUserMess = asyncHandler(async (req, res) => {
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
 
-  if (!cookie && !cookie.refreshToken)
-    throw new Error("No refresh token in cookie");
+  if (!cookie || !cookie.refreshToken) {
+    return res.status(401).json({
+      success: false,
+      message: "No refresh token in cookie",
+    });
+  }
 
-  const rs = await jwt.verify(cookie.refreshToken, process.env.JWT_SECRET);
+  let decoded;
+  try {
+    decoded = jwt.verify(cookie.refreshToken, process.env.JWT_SECRET);
+  } catch (_error) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid refresh token",
+    });
+  }
   const response = await User.findOne({
-    _id: rs._id,
+    _id: decoded._id,
     refreshToken: cookie.refreshToken,
-  });
+    isDeleted: { $ne: true },
+  }).select("_id username Avatar email mobile role Address isBlocked date assignedStaff");
+
+  if (!response) {
+    return res.status(401).json({
+      success: false,
+      message: "Refresh token is not matched",
+    });
+  }
+
+  const userData = buildUserData(response);
+  const newAccessToken = generateAccessToken(response._id, response.role);
+  issueCsrfToken(res);
+
   return res.status(200).json({
-    success: response ? true : false,
-    newAccessToken: response
-      ? generateAccessToken(response._id, response.role)
-      : "Refresh token is not matched",
+    success: true,
+    userData,
+    newAccessToken,
+    url: getRedirectUrlByRole(response.role),
   });
 });
 const forgotPassword = asyncHandler(async (req, res) => {
