@@ -20,7 +20,6 @@ const sendMail = asyncHandler(async ({ email, html, type }) => {
       } else if (type === "reset") {
         subject = "Forgor password!";
       }
-      // Send mail with defined transport object
       const info = await transporter.sendMail({
         from: '"PetStore " <no-reply@petstore.com>',
         to: email,

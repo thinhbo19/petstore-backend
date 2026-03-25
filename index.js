@@ -17,7 +17,6 @@ const { renderSwaggerHome } = require("./swagger/homepage");
 
 const app = express();
 
-// Cấu hình CORS cho Express
 app.use(
   cors({
     origin: ["http://localhost:3000", process.env.URL_CLIENT], // Đảm bảo URL_CLIENT được định nghĩa trong .env
@@ -26,27 +25,21 @@ app.use(
   })
 );
 
-// Cấu hình Cookie parser cho Express
 app.use(cookieParser());
 
-// Cấu hình Express để xử lý JSON và URL-encoded requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Swagger UI - Trang chủ hiển thị danh sách tags
 app.get("/api-docs", (req, res) => {
   const html = renderSwaggerHome(mergedTags);
   res.send(html);
 });
 
-// Serve Swagger UI assets (phải đặt trước route GET)
 app.use("/api-docs/:tag", swaggerUi.serve);
 
-// Swagger UI cho từng tag cụ thể
 app.get("/api-docs/:tag", (req, res, next) => {
   const tagName = req.params.tag;
   
-  // Kiểm tra xem tag có tồn tại không
   const tagExists = mergedTags.some((t) => t.name === tagName);
   if (!tagExists) {
     return res.status(404).send(`
@@ -93,18 +86,14 @@ app.get("/api-docs/:tag", (req, res, next) => {
   })(req, res, next);
 });
 
-// Kết nối cơ sở dữ liệu
 dbConnect();
 
-// Khởi tạo các router cho Express
 initRouters(app);
 
-// Tạo HTTP server từ Express
 const server = app.listen(process.env.PORT || 8888, () => {
   console.log("Server running on port " + (process.env.PORT || 8888));
 });
 
-// Tạo một instance của socket.io và truyền HTTP server vào
 const io = new Server(server, {
   cors: {
     origin: process.env.URL_CLIENT, // Đảm bảo URL_CLIENT được định nghĩa trong .env
@@ -112,7 +101,6 @@ const io = new Server(server, {
   },
 });
 
-// Danh sách người dùng trực tuyến
 let onlineUser = [];
 const extractObjectId = (value) => {
   if (!value) return "";
@@ -167,7 +155,6 @@ io.use((socket, next) => {
   }
 });
 
-// Xử lý sự kiện kết nối từ client
 io.on("connection", (socket) => {
   const userId = normalizeId(socket.user?._id);
   console.log("new connect", socket.id, userId);
@@ -176,7 +163,6 @@ io.on("connection", (socket) => {
     (user) => normalizeId(user.userId) === userId,
   );
   if (existedIndex >= 0) {
-    // Replace stale socket mapping if same user reconnects.
     onlineUser[existedIndex] = { userId, socketId: socket.id };
   } else if (userId) {
     onlineUser.push({
@@ -186,7 +172,6 @@ io.on("connection", (socket) => {
   }
   io.emit("getOnlineUser", onlineUser);
 
-  // Xử lý sự kiện gửi tin nhắn từ client
   socket.on("sendMess", async (message) => {
     try {
       const senderId = normalizeId(socket.user?._id);
@@ -230,7 +215,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Xử lý ngắt kết nối
   socket.on("disconnect", () => {
     onlineUser = onlineUser.filter((user) => user.socketId !== socket.id);
     io.emit("getOnlineUser", onlineUser);

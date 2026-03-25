@@ -23,7 +23,6 @@ router.post("/login", loginLimiter, UserControls.login);
 router.post("/verify-otp", otpLimiter, UserControls.activateAccount);
 router.post("/resend-otp", otpLimiter, UserControls.resendOTP);
 router.get("/logout", UserControls.logout);
-//get user
 router.get("/allUser", [verifyAccessToken, isStrictAdmin], UserControls.getallAccount);
 router.get("/current", verifyAccessToken, UserControls.getOneUser);
 router.get(
@@ -31,12 +30,10 @@ router.get(
   [verifyAccessToken, isAdmin],
   UserControls.getUserMess,
 );
-//password
 router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.post("/forgotpassword", resetPasswordLimiter, UserControls.forgotPassword);
 router.post("/resetpassword", resetPasswordLimiter, UserControls.resetPassword);
 router.post("/verify-reset-token", resetPasswordLimiter, UserControls.verifyResetToken);
-//delete user
 router.delete(
   "/delete-user/:uid",
   [verifyAccessToken, isStrictAdmin],
@@ -58,11 +55,9 @@ router.patch(
   [verifyAccessToken, isStrictAdmin],
   UserControls.changeRole,
 );
-//favorite
 router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
 router.put("/favoritePet", [verifyAccessToken], UserControls.addFavorite);
 
-// cart
 router.get("/cart", [verifyAccessToken], UserControls.getCarts);
 router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
 router.put("/updateCartQuantity", [verifyAccessToken], UserControls.updateCartQuantity);
@@ -73,14 +68,12 @@ router.delete(
   UserControls.deleteAllCart,
 );
 
-//address
 router.post("/address", [verifyAccessToken], UserControls.addAddress);
 router.delete(
   "/address/:addressIndex",
   [verifyAccessToken],
   UserControls.deleteAddress,
 );
-// Add this route to your user routes file
 router.put(
   "/change-address/:addressIndex",
   verifyAccessToken,

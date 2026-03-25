@@ -176,7 +176,6 @@ const createAccount = asyncHandler(async (req, res) => {
   }
 });
 
-// Generate OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -205,7 +204,6 @@ const register = asyncHandler(async (req, res) => {
         message: "User with this email already exists",
       });
     } else {
-      // Generate OTP
       const otp = generateOTP();
       const otpExpiry = new Date();
       otpExpiry.setMinutes(otpExpiry.getMinutes() + 5); // OTP expires in 5 minutes
@@ -296,7 +294,6 @@ const activateAccount = asyncHandler(async (req, res) => {
       });
     }
 
-    // Update user status and clear OTP
     user.isBlocked = false;
     user.otp = undefined;
     await user.save();
@@ -314,7 +311,6 @@ const activateAccount = asyncHandler(async (req, res) => {
   }
 });
 
-// Resend OTP
 const resendOTP = asyncHandler(async (req, res) => {
   try {
     const { email } = req.body;
@@ -342,19 +338,16 @@ const resendOTP = asyncHandler(async (req, res) => {
       });
     }
 
-    // Generate new OTP
     const otp = generateOTP();
     const otpExpiry = new Date();
     otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
 
-    // Update user with new OTP
     user.otp = {
       code: otp,
       expiresAt: otpExpiry,
     };
     await user.save();
 
-    // Send new OTP email
     const html = generateActivationEmail(user.username, otp);
     const data = {
       email: email,
@@ -1240,7 +1233,6 @@ const changeAddress = asyncHandler(async (req, res) => {
       });
     }
 
-    // Check if the address index is valid
     if (addressIndex < 0 || addressIndex >= user.Address.length) {
       return res.status(400).json({
         success: false,
@@ -1248,7 +1240,6 @@ const changeAddress = asyncHandler(async (req, res) => {
       });
     }
 
-    // Update the address at the specified index
     user.Address[addressIndex].address = address;
     await user.save();
 

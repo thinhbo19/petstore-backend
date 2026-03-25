@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
 
-// Hàm đọc đệ quy tất cả file YAML trong thư mục và các thư mục con
 function readYamlFilesRecursive(dir, mergedPaths = {}, mergedTags = []) {
   if (!fs.existsSync(dir)) {
     return { mergedPaths, mergedTags };
@@ -16,21 +15,17 @@ function readYamlFilesRecursive(dir, mergedPaths = {}, mergedTags = []) {
     const fullPath = path.join(dir, item.name);
 
     if (item.isDirectory()) {
-      // Đọc đệ quy vào thư mục con
       const result = readYamlFilesRecursive(fullPath, mergedPaths, mergedTags);
       mergedPaths = result.mergedPaths;
       mergedTags = result.mergedTags;
     } else if (item.isFile() && (item.name.endsWith(".yaml") || item.name.endsWith(".yml"))) {
-      // Đọc file YAML
       const fileContent = fs.readFileSync(fullPath, "utf8");
       const yamlContent = yaml.load(fileContent);
 
-      // Merge paths
       if (yamlContent.paths) {
         mergedPaths = { ...mergedPaths, ...yamlContent.paths };
       }
 
-      // Merge tags (chỉ lấy unique tags)
       if (yamlContent.tags) {
         yamlContent.tags.forEach((tag) => {
           if (!mergedTags.find((t) => t.name === tag.name)) {
@@ -44,7 +39,6 @@ function readYamlFilesRecursive(dir, mergedPaths = {}, mergedTags = []) {
   return { mergedPaths, mergedTags };
 }
 
-// Đọc và merge tất cả các file YAML
 const definitionsDir = path.join(__dirname, "swagger", "definitions");
 const { mergedPaths, mergedTags } = readYamlFilesRecursive(definitionsDir);
 
@@ -80,9 +74,7 @@ const options = {
 
 const swaggerSpec = swaggerJsdoc(options);
 
-// Hàm tạo swagger spec cho một tag cụ thể
 function getSwaggerSpecByTag(tagName) {
-  // Filter paths chỉ giữ lại những path có tag tương ứng
   const filteredPaths = {};
   Object.keys(mergedPaths).forEach((path) => {
     const pathObj = mergedPaths[path];
@@ -97,7 +89,6 @@ function getSwaggerSpecByTag(tagName) {
     });
   });
 
-  // Tìm tag info
   const tagInfo = mergedTags.find((t) => t.name === tagName);
 
   const tagOptions = {

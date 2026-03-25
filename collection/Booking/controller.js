@@ -158,11 +158,6 @@ const getUserBooking = asyncHandler(async (req, res) => {
 
     const orders = await Booking.find({ user: userID })
       .populate("user", "username email mobile")
-      // .populate({
-      //   path: "coupon",
-      //   model: "Voucher",
-      //   select: "nameVoucher",
-      // })
       .populate({
         path: "services",
         select: "nameService type description price rating",

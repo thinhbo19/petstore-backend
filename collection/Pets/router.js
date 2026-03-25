@@ -24,7 +24,6 @@ router.get("/getPetBySpecies/:specie", petsControlls.getPetBySpecies);
 router.get("/sortPet/:breed", petsControlls.sortingPet);
 router.get("/filterPrice/:breed", petsControlls.filterPricePet);
 
-//rating
 router.post(
   "/rating/:petId",
   [verifyAccessToken],

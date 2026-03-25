@@ -1,6 +1,5 @@
 const mongoose = require("mongoose"); // Erase if already required
 
-// Declare the Schema of the Mongo model
 var voucherSchema = new mongoose.Schema({
   nameVoucher: {
     type: String,
@@ -30,5 +29,4 @@ var voucherSchema = new mongoose.Schema({
   },
 });
 
-//Export the model
 module.exports = mongoose.model("Voucher", voucherSchema);

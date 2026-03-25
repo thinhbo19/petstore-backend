@@ -249,7 +249,6 @@ const postRating = asyncHandler(async (req, res) => {
       (r) => r.postBy.toString() === postBy
     );
     if (existingRatingIndex !== -1) {
-      // Cập nhật đánh giá nếu đã tồn tại
       prod.rating[existingRatingIndex] = {
         postBy,
         username: user.username,

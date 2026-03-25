@@ -45,7 +45,6 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Always allow Admin to reach permission APIs to avoid locking out RBAC management.
   if (req.user?.role === "Admin" && requestPath.startsWith("/api/permission")) {
     return next();
   }

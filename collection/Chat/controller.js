@@ -288,8 +288,6 @@ const getStaffConversations = asyncHandler(async (req, res) => {
       assignedStaff: staffId,
     }).select("_id username Avatar email mobile");
 
-    // 1) Include customers assigned to this staff
-    // 2) Include customers already in chats with this staff (legacy chats)
     const customerMap = new Map();
     for (const customer of assignedCustomers) {
       customerMap.set(normalizeId(customer._id), customer);

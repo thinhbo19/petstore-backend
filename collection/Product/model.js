@@ -1,6 +1,5 @@
 const mongoose = require("mongoose"); // Erase if already required
 
-// Declare the Schema of the Mongo model
 var productSchema = new mongoose.Schema({
   nameProduct: {
     type: String,
@@ -31,5 +30,4 @@ var productSchema = new mongoose.Schema({
   ],
 });
 
-//Export the model
 module.exports = mongoose.model("Product", productSchema);
