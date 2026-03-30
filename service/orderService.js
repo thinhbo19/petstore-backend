@@ -67,33 +67,42 @@ const createOrderService = async ({
     for (let item of lineItems) {
       let product = await Product.findById(item.id);
       if (product) {
+        const stockProd = Number(product.quantity);
         if (
-          !product.quantity ||
-          product.quantity <= 0 ||
+          !Number.isFinite(stockProd) ||
+          stockProd < 1 ||
           product.sold === true
         ) {
           throw new Error(`Product ${product.nameProduct} is out of stock`);
         }
-        if (item.count > product.quantity) {
+        if (item.count > stockProd) {
           throw new Error(
-            `Product ${product.nameProduct} has only ${product.quantity} items in stock`
+            `Product ${product.nameProduct} has only ${stockProd} items in stock`
           );
         }
 
-        totalPrice += product.price * item.count;
+        const unitPrice = Number(product.price);
+        totalPrice +=
+          (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
       } else {
         let pet = await Pet.findById(item.id);
         if (pet) {
-          if (!pet.quantity || pet.quantity <= 0 || pet.sold === true) {
+          const stockPet = Number(pet.quantity);
+          if (
+            !Number.isFinite(stockPet) ||
+            stockPet < 1 ||
+            pet.sold === true
+          ) {
             throw new Error(`Pet ${pet.namePet} is out of stock`);
           }
-          if (item.count > pet.quantity) {
+          if (item.count > stockPet) {
             throw new Error(
-              `Pet ${pet.namePet} has only ${pet.quantity} items in stock`
+              `Pet ${pet.namePet} has only ${stockPet} items in stock`
             );
           }
 
-          totalPrice += pet.price * item.count;
+          const petPrice = Number(pet.price);
+          totalPrice += (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
         } else {
           throw new Error(
             `Item with ID ${item.id} not found in products or pets`
@@ -142,13 +151,23 @@ const createOrderService = async ({
       let pet = await Pet.findById(item.id);
 
       if (product) {
-        let newQuantityProd = product.quantity - item.count;
+        const stockProd = Number(product.quantity);
+        if (!Number.isFinite(stockProd)) {
+          throw new Error(
+            `Invalid quantity in DB for product ${product.nameProduct}`
+          );
+        }
+        const newQuantityProd = stockProd - item.count;
         await Product.findByIdAndUpdate(item.id, {
           quantity: newQuantityProd,
           sold: newQuantityProd === 0,
         });
-      } else {
-        let newQuantityPet = pet.quantity - item.count;
+      } else if (pet) {
+        const stockPet = Number(pet.quantity);
+        if (!Number.isFinite(stockPet)) {
+          throw new Error(`Invalid quantity in DB for pet ${pet.namePet}`);
+        }
+        const newQuantityPet = stockPet - item.count;
         await Pet.findByIdAndUpdate(item.id, {
           quantity: newQuantityPet,
           sold: newQuantityPet === 0,
@@ -178,29 +197,42 @@ const returnTotalPrice = async ({ products }) => {
   for (let item of lineItems) {
     let product = await Product.findById(item.id);
     if (product) {
-      if (!product.quantity || product.quantity <= 0 || product.sold === true) {
+      const stockProd = Number(product.quantity);
+      if (
+        !Number.isFinite(stockProd) ||
+        stockProd < 1 ||
+        product.sold === true
+      ) {
         throw new Error(`Product ${product.nameProduct} is out of stock`);
       }
-      if (item.count > product.quantity) {
+      if (item.count > stockProd) {
         throw new Error(
-          `Product ${product.nameProduct} has only ${product.quantity} items in stock`
+          `Product ${product.nameProduct} has only ${stockProd} items in stock`
         );
       }
 
-      totalPrice += product.price * item.count;
+      const unitPrice = Number(product.price);
+      totalPrice +=
+        (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
     } else {
       let pet = await Pet.findById(item.id);
       if (pet) {
-        if (!pet.quantity || pet.quantity <= 0 || pet.sold === true) {
+        const stockPet = Number(pet.quantity);
+        if (
+          !Number.isFinite(stockPet) ||
+          stockPet < 1 ||
+          pet.sold === true
+        ) {
           throw new Error(`Pet ${pet.namePet} is out of stock`);
         }
-        if (item.count > pet.quantity) {
+        if (item.count > stockPet) {
           throw new Error(
-            `Pet ${pet.namePet} has only ${pet.quantity} items in stock`
+            `Pet ${pet.namePet} has only ${stockPet} items in stock`
           );
         }
 
-        totalPrice += pet.price * item.count;
+        const petPrice = Number(pet.price);
+        totalPrice += (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
       } else {
         throw new Error(
           `Item with ID ${item.id} not found in products or pets`

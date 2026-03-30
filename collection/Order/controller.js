@@ -66,9 +66,10 @@ const createOrder = asyncHandler(async (req, res) => {
     for (let item of lineItems) {
       let product = await Product.findById(item.id);
       if (product) {
+        const stockProd = Number(product.quantity);
         if (
-          product.quantity === null ||
-          product.quantity <= 0 ||
+          !Number.isFinite(stockProd) ||
+          stockProd < 1 ||
           product.sold === true
         ) {
           return res.status(400).json({
@@ -76,31 +77,40 @@ const createOrder = asyncHandler(async (req, res) => {
             message: `Product ${product.nameProduct} is out of stock`,
           });
         }
-        if (item.count > product.quantity) {
+        if (item.count > stockProd) {
           return res.status(400).json({
             success: false,
-            message: `Product ${product.nameProduct} has only ${product.quantity} items in stock`,
+            message: `Product ${product.nameProduct} has only ${stockProd} items in stock`,
           });
         }
 
-        totalPrice += product.price * item.count;
+        const unitPrice = Number(product.price);
+        totalPrice +=
+          (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
       } else {
         let pet = await Pet.findById(item.id);
         if (pet) {
-          if (pet.quantity === null || pet.quantity <= 0 || pet.sold === true) {
+          const stockPet = Number(pet.quantity);
+          if (
+            !Number.isFinite(stockPet) ||
+            stockPet < 1 ||
+            pet.sold === true
+          ) {
             return res.status(400).json({
               success: false,
               message: `Pet ${pet.namePet} is out of stock`,
             });
           }
-          if (item.count > pet.quantity) {
+          if (item.count > stockPet) {
             return res.status(400).json({
               success: false,
-              message: `Pet ${pet.namePet} has only ${pet.quantity} items in stock`,
+              message: `Pet ${pet.namePet} has only ${stockPet} items in stock`,
             });
           }
 
-          totalPrice += pet.price * item.count;
+          const petPrice = Number(pet.price);
+          totalPrice +=
+            (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
         } else {
           return res.status(404).json({
             success: false,
@@ -161,13 +171,23 @@ const createOrder = asyncHandler(async (req, res) => {
         let product = await Product.findById(item.id);
         let pet = await Pet.findById(item.id);
         if (product) {
-          let newQuantityProd = product.quantity - item.count;
+          const stockProd = Number(product.quantity);
+          if (!Number.isFinite(stockProd)) {
+            throw new Error(
+              `Invalid quantity in DB for product ${product.nameProduct}`,
+            );
+          }
+          const newQuantityProd = stockProd - item.count;
           await Product.findByIdAndUpdate(item.id, {
             quantity: newQuantityProd,
             sold: newQuantityProd === 0,
           });
         } else if (pet) {
-          let newQuantityPet = pet.quantity - item.count;
+          const stockPet = Number(pet.quantity);
+          if (!Number.isFinite(stockPet)) {
+            throw new Error(`Invalid quantity in DB for pet ${pet.namePet}`);
+          }
+          const newQuantityPet = stockPet - item.count;
           await Pet.findByIdAndUpdate(item.id, {
             quantity: newQuantityPet,
             sold: newQuantityPet === 0,
@@ -183,7 +203,7 @@ const createOrder = asyncHandler(async (req, res) => {
             const cartQty = Number(user.cart[idx].quantity);
             const safeCartQty = Number.isFinite(cartQty) ? cartQty : 0;
             const remaining = safeCartQty - item.count;
-            if (remaining <= 0) {
+            if (!Number.isFinite(remaining) || remaining <= 0) {
               user.cart.splice(idx, 1);
             } else {
               user.cart[idx].quantity = remaining;
