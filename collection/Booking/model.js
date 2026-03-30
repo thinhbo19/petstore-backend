@@ -20,7 +20,7 @@ var bookingSchema = new mongoose.Schema(
     voucher: {
       type: mongoose.Schema.ObjectId,
       ref: "Voucher",
-      require: true,
+      default: null,
     },
 
     Note: { type: String },

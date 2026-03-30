@@ -15,7 +15,6 @@ router.get(
   verifyAccessToken,
   ChatControls.findChat,
 );
-router.get("/find/:firtsId/:secondId", verifyAccessToken, ChatControls.findChat);
 router.get("/:userId", verifyAccessToken, ChatControls.findUserChat);
 router.delete("/:_id", verifyAccessToken, ChatControls.deleteChat);
 

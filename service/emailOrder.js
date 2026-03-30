@@ -4,25 +4,32 @@ const generateOrderConfirmationEmail = (
   orderItems,
   totalAmount
 ) => {
-  const orderRows = orderItems
-    .map(
-      (item) => `
+  const items = Array.isArray(orderItems) ? orderItems : [];
+  const orderRows = items
+    .map((item) => {
+      const lineName =
+        item?.name ??
+        item?.nameProduct ??
+        item?.namePet ??
+        (item?.id ? `Mã #${String(item.id).slice(-6)}` : "Sản phẩm");
+      const count = Number(item?.count ?? 0);
+      const unitPrice = Number(item?.price ?? 0);
+      const priceLabel = Number.isFinite(unitPrice)
+        ? unitPrice.toLocaleString("vi-VN", {
+            style: "currency",
+            currency: "VND",
+          })
+        : "—";
+      return `
             <tr>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${
-                item.name
-              }</td>
-              <td style="padding: 8px; text-align: center; border-bottom: 1px solid #ddd;">${
-                item.count
-              }</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${lineName}</td>
+              <td style="padding: 8px; text-align: center; border-bottom: 1px solid #ddd;">${count}</td>
               <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">
-                ${item.price.toLocaleString("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                })}
+                ${priceLabel}
               </td>
             </tr>
-          `
-    )
+          `;
+    })
     .join("");
 
   const orderUrl = `${process.env.URL_CLIENT}/order-detail/${orderId}`;
@@ -133,7 +140,7 @@ const generateOrderConfirmationEmail = (
                 </tbody>
               </table>
               <p style="font-size: 16px; text-align: right; font-weight: bold; margin: 20px 0;">
-                Tổng cộng: ${totalAmount.toLocaleString("vi-VN", {
+                Tổng cộng: ${Number(totalAmount || 0).toLocaleString("vi-VN", {
                   style: "currency",
                   currency: "VND",
                 })}

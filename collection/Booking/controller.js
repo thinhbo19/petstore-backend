@@ -27,9 +27,22 @@ function sortObject(obj) {
 
 var inforOrder = {};
 
+const parseJsonField = (value, fallback) => {
+  if (value == null || value === "") return fallback;
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 const createBooking = asyncHandler(async (req, res) => {
   try {
-    const {
+    let {
       user,
       petInfo,
       services,
@@ -41,6 +54,14 @@ const createBooking = asyncHandler(async (req, res) => {
     } = req.body;
     const requesterId = String(req.user?._id || "");
     const requesterRole = req.user?.role;
+
+    services = parseJsonField(services, []);
+    if (!Array.isArray(services) || !services.length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one service is required",
+      });
+    }
 
     if (requesterRole !== "Admin" && requesterId !== String(user)) {
       return res.status(403).json({
@@ -56,7 +77,7 @@ const createBooking = asyncHandler(async (req, res) => {
       voucher: voucher || null,
       Note,
       bookingDate,
-      totalPrice,
+      totalPrice: Number(totalPrice),
       paymentMethod,
     });
 
@@ -69,7 +90,6 @@ const createBooking = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to create booking",
-      error: error.message,
     });
   }
 });

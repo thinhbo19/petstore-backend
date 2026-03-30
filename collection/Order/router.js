@@ -30,6 +30,16 @@ router.get(
 router.get("/:orderID", [verifyAccessToken, isStrictAdmin], OrderControl.getOneOrder);
 router.get("/user/:userID", [verifyAccessToken], OrderControl.getUserOrder);
 router.get("/userOne/:orderID", [verifyAccessToken], OrderControl.getOneOrderByUser);
+router.patch(
+  "/user/confirm-received/:orderID",
+  [verifyAccessToken],
+  OrderControl.confirmOrderReceivedByUser
+);
+router.patch(
+  "/user/cancel/:orderID",
+  [verifyAccessToken],
+  OrderControl.cancelOrderByUser
+);
 
 router.delete(
   "/:orderID",

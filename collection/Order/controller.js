@@ -10,6 +10,7 @@ const querystring = require("qs");
 const crypto = require("crypto");
 const { generateOrderConfirmationEmail } = require("../../service/emailOrder");
 const sendMailOrder = require("../../utils/sendMailOrderjs");
+const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
 require("dotenv").config();
 
 function sortObject(obj) {
@@ -86,7 +87,7 @@ const createOrder = asyncHandler(async (req, res) => {
           if (item.count > pet.quantity) {
             return res.status(400).json({
               success: false,
-              message: `Product ${pet.namePet} has only ${product.quantity} items in stock`,
+              message: `Pet ${pet.namePet} has only ${pet.quantity} items in stock`,
             });
           }
 
@@ -101,14 +102,18 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     if (coupon) {
-      const user = await User.findById(orderBy).populate("Voucher.voucherID");
-      const userVouchers = user.Voucher.map((v) => v.voucherID);
-      const res = userVouchers.find((v) => v._id.equals(coupon));
+      const userForCoupon = await User.findById(orderBy).populate(
+        "Voucher.voucherID",
+      );
+      const userVouchers = userForCoupon.Voucher.map((v) => v.voucherID);
+      const matchedUserVoucher = userVouchers.find((v) =>
+        v._id.equals(coupon),
+      );
 
-      if (res) {
-        const voucher = await Voucher.findById(coupon);
-        if (voucher) {
-          const discountAmount = (totalPrice * voucher.discount) / 100;
+      if (matchedUserVoucher) {
+        const voucherDoc = await Voucher.findById(coupon);
+        if (voucherDoc) {
+          const discountAmount = (totalPrice * voucherDoc.discount) / 100;
           totalPrice = Math.max(0, totalPrice - discountAmount);
         } else {
           return res.status(404).json({
@@ -160,29 +165,50 @@ const createOrder = asyncHandler(async (req, res) => {
       });
     }
     const user = await User.findById(orderBy);
-    const html = generateOrderConfirmationEmail(
-      user.username,
-      newOrder._id,
-      newOrder.products,
-      newOrder.totalPrice
-    );
+    if (user?.cart?.length) {
+      for (const item of products) {
+        const idx = user.cart.findIndex((c) => c.id.equals(item.id));
+        if (idx >= 0) {
+          const remaining = user.cart[idx].quantity - item.count;
+          if (remaining <= 0) {
+            user.cart.splice(idx, 1);
+          } else {
+            user.cart[idx].quantity = remaining;
+          }
+        }
+      }
+      await user.save();
+    }
 
-    const data = {
-      email: user.email,
-      subject: "You have just placed an order successfully",
-      html,
-    };
-    await sendMailOrder(data);
+    // Email không được làm fail API: đơn đã tạo + kho đã trừ; SMTP hoặc template lỗi chỉ ghi log.
+    if (user?.email) {
+      try {
+        const html = generateOrderConfirmationEmail(
+          user.username || "Khách hàng",
+          newOrder._id,
+          newOrder.products,
+          newOrder.totalPrice
+        );
+        await sendMailOrder({
+          email: user.email,
+          subject: "You have just placed an order successfully",
+          html,
+        });
+      } catch (mailErr) {
+        console.error("Order confirmation email failed:", mailErr?.message || mailErr);
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: "Order created successfully",
       data: newOrder,
     });
   } catch (error) {
+    console.error("createOrder error:", error?.message || error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     });
   }
 });
@@ -256,9 +282,10 @@ const getOneOrder = asyncHandler(async (req, res) => {
       });
     }
 
+    const data = await enrichOrderDoc(orders);
     return res.status(200).json({
       success: true,
-      data: orders,
+      data,
     });
   } catch (error) {
     return res.status(500).json({
@@ -297,9 +324,14 @@ const getUserOrder = asyncHandler(async (req, res) => {
       });
     }
 
+    const viewerForRating =
+      requesterRole === "Admin" ? String(userID) : requesterId;
+    const data = await Promise.all(
+      orders.map((o) => enrichOrderDoc(o, { viewerId: viewerForRating })),
+    );
     return res.status(200).json({
       success: true,
-      data: orders,
+      data,
     });
   } catch (error) {
     return res.status(500).json({
@@ -320,6 +352,103 @@ const updateStatusOrder = asyncHandler(async (req, res) => {
   return res.json({
     success: response ? true : false,
     response: response ? response : "false",
+  });
+});
+
+/** Khách xác nhận đã nhận hàng: chỉ Shipping → Success, chỉ chủ đơn. */
+const confirmOrderReceivedByUser = asyncHandler(async (req, res) => {
+  const { orderID } = req.params;
+  const requesterId = String(req.user?._id || "");
+
+  const order = await Order.findById(orderID);
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: "No order found",
+    });
+  }
+
+  if (String(order.OrderBy) !== requesterId) {
+    return res.status(403).json({
+      success: false,
+      message: "Forbidden",
+    });
+  }
+
+  if (order.status !== "Shipping") {
+    return res.status(400).json({
+      success: false,
+      message: "Chỉ đơn đang giao mới xác nhận nhận hàng được",
+    });
+  }
+
+  order.status = "Success";
+  await order.save();
+  const data = await enrichOrderDoc(order, { viewerId: requesterId });
+  return res.status(200).json({
+    success: true,
+    message: "Đã xác nhận nhận hàng",
+    data,
+  });
+});
+
+/** Khách hủy đơn: chỉ Processing → Cancelled, chỉ chủ đơn; hoàn trả số lượng kho. */
+const cancelOrderByUser = asyncHandler(async (req, res) => {
+  const { orderID } = req.params;
+  const requesterId = String(req.user?._id || "");
+
+  const order = await Order.findById(orderID);
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: "No order found",
+    });
+  }
+
+  if (String(order.OrderBy) !== requesterId) {
+    return res.status(403).json({
+      success: false,
+      message: "Forbidden",
+    });
+  }
+
+  if (order.status !== "Processing") {
+    return res.status(400).json({
+      success: false,
+      message: "Chỉ đơn đang xử lý mới được hủy",
+    });
+  }
+
+  const products = order.products || [];
+  for (const item of products) {
+    if (!item?.id || !item?.count) continue;
+    const pid = item.id;
+    const product = await Product.findById(pid);
+    if (product) {
+      const newQty = (product.quantity ?? 0) + item.count;
+      await Product.findByIdAndUpdate(pid, {
+        quantity: newQty,
+        sold: newQty === 0,
+      });
+    } else {
+      const pet = await Pet.findById(pid);
+      if (pet) {
+        const newQty = (pet.quantity ?? 0) + item.count;
+        await Pet.findByIdAndUpdate(pid, {
+          quantity: newQty,
+          sold: newQty === 0,
+        });
+      }
+    }
+  }
+
+  order.status = "Cancelled";
+  await order.save();
+  const data = await enrichOrderDoc(order, { viewerId: requesterId });
+  return res.status(200).json({
+    success: true,
+    message: "Đã hủy đơn hàng",
+    data,
   });
 });
 
@@ -355,9 +484,12 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
       });
     }
 
+    const viewerForRating =
+      requesterRole === "Admin" ? undefined : requesterId;
+    const data = await enrichOrderDoc(order, { viewerId: viewerForRating });
     return res.status(200).json({
       success: true,
-      data: order,
+      data,
     });
   } catch (error) {
     return res.status(500).json({
@@ -772,6 +904,8 @@ module.exports = {
   getOneOrderByUser,
   deleteOrder,
   updateStatusOrder,
+  confirmOrderReceivedByUser,
+  cancelOrderByUser,
   handlePaymentUrl,
   handleVnPayReturn,
   hanldMoMoPay,

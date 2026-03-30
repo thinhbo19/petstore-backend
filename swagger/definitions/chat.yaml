@@ -5,25 +5,20 @@ tags:
 paths:
   /api/chat:
     post:
-      summary: Tạo phòng chat mới
+      summary: Admin — đồng bộ chat 1-1 cho user và staff
+      description: |
+        Chỉ tài khoản Admin. Không cần body: server duyệt mọi user,
+        gán staff (nếu thiếu) và tạo/đảm bảo phòng chat 1-1.
       tags: [Chat]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [senderId, receiverId]
-              properties:
-                senderId:
-                  type: string
-                receiverId:
-                  type: string
       responses:
-        '201':
-          description: Tạo phòng chat thành công
+        '200':
+          description: Danh sách chat đã xử lý (total, chats)
+        '403':
+          description: Không phải Admin
+
+  /api/chat/{_id}:
     delete:
-      summary: Xóa phòng chat
+      summary: Xóa phòng chat theo ID
       tags: [Chat]
       parameters:
         - in: path
@@ -63,13 +58,13 @@ paths:
         '200':
           description: Danh sách phòng chat
 
-  /api/chat/find/{firtsId}/{secondId}:
+  /api/chat/conversation/{firstId}/{secondId}:
     get:
       summary: Tìm phòng chat giữa hai người dùng
       tags: [Chat]
       parameters:
         - in: path
-          name: firtsId
+          name: firstId
           required: true
           schema:
             type: string
@@ -81,4 +76,3 @@ paths:
       responses:
         '200':
           description: Thông tin phòng chat
-

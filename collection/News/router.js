@@ -1,6 +1,6 @@
 const uploadCloud = require("../../middlewares/uploadimg");
 const router = require("express").Router();
-const newsControlls = require("./controler");
+const newsControlls = require("./controller");
 const {
   verifyAccessToken,
   isStrictAdmin,

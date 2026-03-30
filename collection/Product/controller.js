@@ -220,7 +220,7 @@ const postRating = asyncHandler(async (req, res) => {
     const { star, comment } = req.body;
     const postBy = req.user?._id;
 
-    const feedback_img = req.files.map((file) => file.path);
+    const newFiles = (req.files || []).map((file) => file.path);
 
     const { prodId } = req.params;
 
@@ -248,6 +248,11 @@ const postRating = asyncHandler(async (req, res) => {
     const existingRatingIndex = prod.rating.findIndex(
       (r) => r.postBy.toString() === postBy
     );
+    let feedback_img = newFiles;
+    if (existingRatingIndex !== -1 && newFiles.length === 0) {
+      const prev = prod.rating[existingRatingIndex].feedback_img || [];
+      feedback_img = Array.isArray(prev) ? [...prev] : [];
+    }
     if (existingRatingIndex !== -1) {
       prod.rating[existingRatingIndex] = {
         postBy,
@@ -256,7 +261,7 @@ const postRating = asyncHandler(async (req, res) => {
         star,
         comment,
         dateComment: Date.now(),
-        feedback_img: feedback_img,
+        feedback_img,
       };
     } else {
       prod.rating.push({
@@ -266,7 +271,7 @@ const postRating = asyncHandler(async (req, res) => {
         star,
         comment,
         dateComment: Date.now(),
-        feedback_img: feedback_img,
+        feedback_img,
       });
     }
     await prod.save();
@@ -286,7 +291,7 @@ const postRating = asyncHandler(async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      mess: error.message,
+      message: error.message || "Lỗi máy chủ",
     });
   }
 });

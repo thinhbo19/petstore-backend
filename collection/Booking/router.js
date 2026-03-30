@@ -1,13 +1,14 @@
 const router = require("express").Router();
 const {
   verifyAccessToken,
+  isAdmin,
   isStrictAdmin,
 } = require("../../middlewares/verifyToken");
 const BookingControll = require("./controller");
 const uploadCloud = require("../../middlewares/uploadimg");
 
 router.post("/", [verifyAccessToken], uploadCloud.array("images"), BookingControll.createBooking);
-router.get("/", [verifyAccessToken, isStrictAdmin], BookingControll.getAllBookings);
+router.get("/", [verifyAccessToken, isAdmin], BookingControll.getAllBookings);
 router.get(
   "/totalPrice",
   [verifyAccessToken, isStrictAdmin],
@@ -34,7 +35,7 @@ router.get(
   [verifyAccessToken],
   BookingControll.getUserBooking
 );
-router.put("/status/:id", [verifyAccessToken, isStrictAdmin], BookingControll.updateBookingStatus);
+router.put("/status/:id", [verifyAccessToken, isAdmin], BookingControll.updateBookingStatus);
 router.delete(
   "/:id",
   [verifyAccessToken, isStrictAdmin],

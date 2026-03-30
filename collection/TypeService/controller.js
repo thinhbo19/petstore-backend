@@ -259,7 +259,7 @@ const postRating = asyncHandler(async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      mess: error.message,
+      message: error.message || "Lỗi máy chủ",
     });
   }
 });

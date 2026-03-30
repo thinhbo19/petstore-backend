@@ -67,9 +67,9 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
 const isAdmin = asyncHandler(async (req, res, next) => {
   const { role } = req.user;
   if (role !== "Admin" && role !== "Staff")
-    return res.status(401).json({
+    return res.status(403).json({
       success: false,
-      message: "You are not admin or customer!!!!!",
+      message: "Chỉ Admin hoặc Staff được phép thực hiện thao tác này",
     });
   next();
 });

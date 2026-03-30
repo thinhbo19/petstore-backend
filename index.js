@@ -7,6 +7,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const ChatModel = require("./collection/Chat/model");
+const { normalizeId, hasMember } = require("./utils/idUtils");
 const {
   swaggerUi,
   swaggerSpec,
@@ -17,9 +18,14 @@ const { renderSwaggerHome } = require("./swagger/homepage");
 
 const app = express();
 
+// Nhiều môi trường: thêm origin vào mảng hoặc đọc từ biến môi trường (ví dụ split CORS_ORIGINS bằng dấu phẩy).
 app.use(
   cors({
-    origin: ["http://localhost:3000", process.env.URL_CLIENT], // Đảm bảo URL_CLIENT được định nghĩa trong .env
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      process.env.URL_CLIENT,
+    ].filter(Boolean),
     methods: ["POST", "PUT", "GET", "DELETE", "PATCH"],
     credentials: true,
   })
@@ -102,40 +108,6 @@ const io = new Server(server, {
 });
 
 let onlineUser = [];
-const extractObjectId = (value) => {
-  if (!value) return "";
-  const text = String(value).trim();
-  const objectIdMatch = text.match(/ObjectId\(['"]([a-fA-F0-9]{24})['"]\)/);
-  if (objectIdMatch) return objectIdMatch[1];
-  const plainIdMatch = text.match(/\b([a-fA-F0-9]{24})\b/);
-  if (plainIdMatch) return plainIdMatch[1];
-  return "";
-};
-const normalizeId = (id) => {
-  if (!id) return "";
-  if (typeof id === "string") {
-    return extractObjectId(id) || id.trim();
-  }
-  if (typeof id === "number" || typeof id === "boolean" || typeof id === "bigint")
-    return String(id);
-  if (typeof id === "object") {
-    if (typeof id.toHexString === "function") return id.toHexString();
-    if (typeof id.$oid === "string") return extractObjectId(id.$oid) || id.$oid;
-    if (id._id && id._id !== id) return normalizeId(id._id);
-    if (id.id && id.id !== id && typeof id.id !== "function") {
-      const nested = normalizeId(id.id);
-      if (nested && nested !== "[object Object]") return nested;
-    }
-    if (typeof id.toString === "function") {
-      const asText = id.toString();
-      if (asText && asText !== "[object Object]") return asText;
-    }
-    return "";
-  }
-  return String(id);
-};
-const hasMember = (members = [], userId) =>
-  members.some((memberId) => normalizeId(memberId) === normalizeId(userId));
 
 io.use((socket, next) => {
   try {
@@ -157,7 +129,6 @@ io.use((socket, next) => {
 
 io.on("connection", (socket) => {
   const userId = normalizeId(socket.user?._id);
-  console.log("new connect", socket.id, userId);
 
   const existedIndex = onlineUser.findIndex(
     (user) => normalizeId(user.userId) === userId,

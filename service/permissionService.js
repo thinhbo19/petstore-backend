@@ -22,6 +22,26 @@ const isPathMatch = (permissionPath, requestPath) => {
   return true;
 };
 
+/** Không phụ thuộc bản ghi Permission trong DB (route mới thường chưa được admin bật). Controller đã kiểm tra chủ đơn. */
+const INTRINSIC_USER_ONLY_ROUTES = [
+  {
+    method: "PATCH",
+    path: "/api/order/user/confirm-received/:orderID",
+  },
+  {
+    method: "PATCH",
+    path: "/api/order/user/cancel/:orderID",
+  },
+  {
+    method: "POST",
+    path: "/api/pets/rating/:petId",
+  },
+  {
+    method: "POST",
+    path: "/api/product/rating/:prodId",
+  },
+];
+
 const toPermissionKey = (method, path) => `${String(method).toUpperCase()}:${normalizePath(path)}`;
 
 const normalizeRoleName = (role = "") => {
@@ -79,6 +99,16 @@ const isApiAllowedByRole = async (role, method, requestPath) => {
   if (String(role).toLowerCase() === "admin") return true;
   const normalizedMethod = String(method || "").toUpperCase();
   const normalizedRequestPath = normalizePath(requestPath);
+
+  if (normalizeRoleName(role) === "User") {
+    const intrinsic = INTRINSIC_USER_ONLY_ROUTES.some(
+      (rule) =>
+        String(rule.method).toUpperCase() === normalizedMethod &&
+        isPathMatch(rule.path, normalizedRequestPath),
+    );
+    if (intrinsic) return true;
+  }
+
   const roleDoc = await RolePermission.findOne({ role }).lean();
   if (!roleDoc) return true;
 

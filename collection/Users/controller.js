@@ -171,7 +171,6 @@ const createAccount = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong",
-      error: error.message,
     });
   }
 });
@@ -248,7 +247,6 @@ const register = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong during registration.",
-      error: error.message,
     });
   }
 });
@@ -306,7 +304,6 @@ const activateAccount = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error activating account.",
-      error: error.message,
     });
   }
 });
@@ -365,7 +362,6 @@ const resendOTP = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error sending new OTP",
-      error: error.message,
     });
   }
 });
@@ -445,7 +441,6 @@ const login = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong during login.",
-      error: error.message,
     });
   }
 });
@@ -471,7 +466,7 @@ const logout = asyncHandler(async (req, res) => {
   });
   return res.status(200).json({
     success: true,
-    mess: "You are logged out!!!",
+    message: "Đăng xuất thành công",
   });
 });
 const getallAccount = asyncHandler(async (req, res) => {
@@ -571,7 +566,6 @@ const getUserMess = asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Lỗi máy chủ",
-      error: error.message,
     });
   }
 });
@@ -898,7 +892,6 @@ const changeRole = asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error when change",
-      error: error.message,
     });
   }
 });
@@ -1252,7 +1245,6 @@ const changeAddress = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "An error occurred while updating address",
-      error: error.message,
     });
   }
 });

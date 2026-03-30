@@ -83,7 +83,6 @@ const getCurrentNewsByName = asyncHandler(async (req, res) => {
     const allNews = await News.find().select("-__v");
 
     allNews.forEach((article) => {
-      console.log(slugify(article.title));
     });
 
     const existing = allNews.find(
