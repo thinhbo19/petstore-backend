@@ -13,6 +13,8 @@ const formatString = (input) => {
   return formattedWords.join(" ");
 };
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const createProduct = asyncHandler(async (req, res) => {
   try {
     const { nameProduct, category, shortTitle, quantity, price, description } =
@@ -56,13 +58,66 @@ const createProduct = asyncHandler(async (req, res) => {
 
 const getAllProduct = asyncHandler(async (req, res) => {
   try {
-    const product = await Product.find();
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+    let filter = {};
+    if (q) {
+      const regex = new RegExp(escapeRegex(q), "i");
+      filter = {
+        $or: [
+          { nameProduct: regex },
+          { shortTitle: regex },
+          { description: regex },
+          { "category.nameCate": regex },
+        ],
+      };
+    }
+
+    const product = await Product.find(filter).sort({ nameProduct: 1 });
     return res.status(200).json({
       success: true,
       product,
     });
   } catch (error) {
     throw new Error(error);
+  }
+});
+
+/**
+ * Admin: tìm phụ kiện theo tên, shortTitle, mô tả, tên danh mục.
+ * GET /admin/search?q=
+ */
+const searchProductsForAdmin = asyncHandler(async (req, res) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+    if (!q) {
+      const product = await Product.find().sort({ nameProduct: 1 });
+      return res.status(200).json({
+        success: true,
+        product,
+      });
+    }
+
+    const regex = new RegExp(escapeRegex(q), "i");
+    const product = await Product.find({
+      $or: [
+        { nameProduct: regex },
+        { shortTitle: regex },
+        { description: regex },
+        { "category.nameCate": regex },
+      ],
+    }).sort({ nameProduct: 1 });
+
+    return res.status(200).json({
+      success: true,
+      product,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi tìm kiếm.",
+    });
   }
 });
 
@@ -122,14 +177,28 @@ const changeProduct = asyncHandler(async (req, res) => {
     const { nameProduct, quantity, price, description } = req.body;
     if (!productId) throw new Error("Missing Id!!");
 
+    const existing = await Product.findById(productId);
+    if (!existing) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Can not find!!!" });
+    }
+
+    const qtyProvided =
+      quantity !== undefined && quantity !== null && quantity !== "";
+    const parsedQty = qtyProvided ? Number(quantity) : Number(existing.quantity);
+    const safeQty = Number.isFinite(parsedQty)
+      ? Math.max(0, Math.floor(parsedQty))
+      : 0;
+
     const update = await Product.findByIdAndUpdate(
       productId,
       {
         nameProduct,
-        quantity,
+        ...(qtyProvided ? { quantity: safeQty } : {}),
         price,
         description,
-        sold: quantity > 0 ? false : true,
+        sold: safeQty > 0 ? false : true,
       },
       { new: true }
     );
@@ -299,6 +368,7 @@ const postRating = asyncHandler(async (req, res) => {
 module.exports = {
   createProduct,
   getAllProduct,
+  searchProductsForAdmin,
   changeProduct,
   deleteProduct,
   getCurrentProduct,

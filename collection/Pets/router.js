@@ -13,6 +13,11 @@ router.post(
   petsControlls.createNewPets
 );
 router.get("/allPets", petsControlls.getAllPets);
+router.get(
+  "/admin/search/:specie",
+  [verifyAccessToken, isStrictAdmin],
+  petsControlls.searchPetsForAdmin
+);
 router.get("/next/:pid", petsControlls.getNextData);
 router.delete("/:pid", [verifyAccessToken, isStrictAdmin], petsControlls.deletePet);
 router.put("/:pid", [verifyAccessToken, isStrictAdmin], petsControlls.changePets);

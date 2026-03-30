@@ -69,6 +69,53 @@ const getAllPets = asyncHandler(async (req, res) => {
   }
 });
 
+/** Escape string for safe use inside RegExp */
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Admin: pets theo loài (Dog/Cat), tìm theo tên thú, tên giống, mô tả (MongoDB regex, không phân biệt hoa thường).
+ * GET /admin/search/:specie?q=
+ */
+const searchPetsForAdmin = asyncHandler(async (req, res) => {
+  try {
+    const { specie } = req.params;
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+    if (!specie) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu tham số loài (Dog / Cat).",
+      });
+    }
+
+    const formattedSpecie = formatString(specie);
+    const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
+
+    if (!q) {
+      const pets = await Pets.find(baseFilter).sort({ namePet: 1 });
+      return res.status(200).json(pets);
+    }
+
+    const regex = new RegExp(escapeRegex(q), "i");
+    const pets = await Pets.find({
+      ...baseFilter,
+      $or: [
+        { namePet: regex },
+        { "petBreed.nameBreed": regex },
+        { description: regex },
+        { characteristic: regex },
+      ],
+    }).sort({ namePet: 1 });
+
+    return res.status(200).json(pets);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi tìm kiếm.",
+    });
+  }
+});
+
 const getNextData = asyncHandler(async (req, res) => {
   try {
     const { pid } = req.params;
@@ -135,6 +182,13 @@ const changePets = asyncHandler(async (req, res) => {
       });
     }
 
+    const qtyProvided =
+      quantity !== undefined && quantity !== null && quantity !== "";
+    const parsedQty = qtyProvided ? Number(quantity) : Number(pet.quantity);
+    const safeQty = Number.isFinite(parsedQty)
+      ? Math.max(0, Math.floor(parsedQty))
+      : 0;
+
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
       {
@@ -143,11 +197,11 @@ const changePets = asyncHandler(async (req, res) => {
         gender: gender,
         description: description,
         price: price,
-        quantity: quantity,
+        ...(qtyProvided ? { quantity: safeQty } : {}),
         deworming: deworming,
         vaccination: vaccination,
         characteristic: characteristic,
-        sold: quantity > 0 ? false : true,
+        sold: safeQty > 0 ? false : true,
       },
       { new: true }
     );
@@ -208,25 +262,35 @@ const getCurrentPetsByName = asyncHandler(async (req, res) => {
 
 const getPetBySpecies = asyncHandler(async (req, res) => {
   const { specie } = req.params;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
 
   if (!specie) {
-    res.status(400);
-    throw new Error("Breed parameter is required");
+    return res.status(400).json({ message: "Species parameter is required" });
   }
 
   try {
     const formattedSpecie = formatString(specie);
+    const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
 
-    const pets = await Pets.find({ "petBreed.nameSpecies": formattedSpecie });
-    if (pets.length === 0) {
-      return res.status(404).json({
-        message: `No pets found for breed: ${formattedSpecie}`,
-      });
+    let pets;
+    if (!q) {
+      pets = await Pets.find(baseFilter).sort({ namePet: 1 });
+    } else {
+      const regex = new RegExp(escapeRegex(q), "i");
+      pets = await Pets.find({
+        ...baseFilter,
+        $or: [
+          { namePet: regex },
+          { "petBreed.nameBreed": regex },
+          { description: regex },
+          { characteristic: regex },
+        ],
+      }).sort({ namePet: 1 });
     }
 
-    res.status(200).json(pets);
+    return res.status(200).json(pets);
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
       error: error.message,
     });
@@ -462,6 +526,7 @@ const deleteRating = asyncHandler(async (req, res) => {
 module.exports = {
   createNewPets,
   getAllPets,
+  searchPetsForAdmin,
   getNextData,
   deletePet,
   changePets,
