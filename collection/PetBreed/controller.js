@@ -2,6 +2,29 @@ const { default: mongoose } = require("mongoose");
 const PetBreed = require("./model");
 const asyncHandler = require("express-async-handler");
 const PetSpecies = require("../PetSpecies/model");
+const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
+const getSort = (query = {}, allowed = [], fallback = "nameBreed") => {
+  const raw = String(query.sort || "").trim();
+  if (!raw) return fallback;
+  const dir = raw.startsWith("-") ? -1 : 1;
+  const field = raw.replace(/^-/, "");
+  if (!allowed.includes(field)) return fallback;
+  return { [field]: dir };
+};
+const getFields = (query = {}, allowed = []) => {
+  const raw = String(query.fields || "").trim();
+  if (!raw) return "";
+  const picked = raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x && allowed.includes(x));
+  return picked.join(" ");
+};
 
 const createNewBreed = asyncHandler(async (req, res) => {
   const { nameBreed, speciesID } = req.body;
@@ -32,10 +55,34 @@ const createNewBreed = asyncHandler(async (req, res) => {
 });
 const getAllPetBreed = asyncHandler(async (req, res) => {
   try {
-    const petBreed = await PetBreed.find();
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["nameBreed", "createdAt", "updatedAt"], "nameBreed");
+    const select = getFields(req.query, [
+      "_id",
+      "nameBreed",
+      "imgBreed",
+      "petSpecies",
+      "createdAt",
+      "updatedAt",
+    ]);
+    const filter = q
+      ? { nameBreed: { $regex: new RegExp(escapeRegex(q), "i") } }
+      : {};
+    const [petBreed, total] = await Promise.all([
+      PetBreed.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      PetBreed.countDocuments(filter),
+    ]);
     return res.status(200).json({
       success: true,
+      data: petBreed,
       petBreed,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     });
   } catch (error) {
     throw new Error(error);
@@ -125,20 +172,43 @@ const getBreedBySpecies = asyncHandler(async (req, res) => {
 
 const getBreedByNameSpecies = asyncHandler(async (req, res) => {
   const { nameSpecies } = req.params;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const { page, limit, skip } = getPagination(req.query);
+  const sort = getSort(req.query, ["nameBreed", "createdAt", "updatedAt"], "nameBreed");
+  const select = getFields(req.query, [
+    "_id",
+    "nameBreed",
+    "imgBreed",
+    "petSpecies",
+    "createdAt",
+    "updatedAt",
+  ]);
 
   if (!nameSpecies) {
     res.status(400);
     throw new Error("Species parameter is required");
   }
 
-  const breeds = await PetBreed.find({ "petSpecies.nameSpecies": nameSpecies });
+  const filter = {
+    "petSpecies.nameSpecies": nameSpecies,
+    ...(q ? { nameBreed: { $regex: new RegExp(escapeRegex(q), "i") } } : {}),
+  };
+  const [breeds, total] = await Promise.all([
+    PetBreed.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+    PetBreed.countDocuments(filter),
+  ]);
 
-  if (breeds.length === 0) {
-    res.status(404);
-    throw new Error(`No breeds found for species: ${nameSpecies}`);
-  }
-
-  res.status(200).json(breeds);
+  res.status(200).json({
+    success: true,
+    data: breeds,
+    breeds,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  });
 });
 
 const sortingBreed = asyncHandler(async (req, res) => {

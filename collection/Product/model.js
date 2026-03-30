@@ -29,5 +29,8 @@ var productSchema = new mongoose.Schema({
     },
   ],
 });
+productSchema.index({ nameProduct: 1 });
+productSchema.index({ shortTitle: 1 });
+productSchema.index({ "category.nameCate": 1 });
 
 module.exports = mongoose.model("Product", productSchema);

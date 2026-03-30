@@ -16,5 +16,8 @@ var PetBreedSchema = new mongoose.Schema({
     nameSpecies: { type: String },
   },
 });
+PetBreedSchema.index({ nameBreed: 1 });
+PetBreedSchema.index({ "petSpecies.nameSpecies": 1 });
+PetBreedSchema.index({ "petSpecies.speciesID": 1 });
 
 module.exports = mongoose.model("PetBreed", PetBreedSchema);

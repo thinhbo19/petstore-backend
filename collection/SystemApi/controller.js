@@ -1,6 +1,26 @@
 const asyncHandler = require("express-async-handler");
 const { getAllApiRoutes } = require("../../service/systemApiCollector");
 const SystemApiNote = require("./model");
+const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
+const SEARCH_CACHE_TTL_MS = 10000;
+const searchCache = new Map();
+const getCache = (key) => {
+  const hit = searchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expireAt) {
+    searchCache.delete(key);
+    return null;
+  }
+  return hit.value;
+};
+const setCache = (key, value) => {
+  searchCache.set(key, { value, expireAt: Date.now() + SEARCH_CACHE_TTL_MS });
+};
 
 const normalizePath = (path = "") => {
   const clean = String(path || "").split("?")[0].replace(/\/+/g, "/");
@@ -43,6 +63,13 @@ const getApiNote = (method, path) => {
 };
 
 const getAllSystemApis = asyncHandler(async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const { page, limit, skip } = getPagination(req.query);
+  const sortRaw = String(req.query.sort || "path").trim();
+  const fieldsRaw = String(req.query.fields || "").trim();
+  const cacheKey = JSON.stringify({ q, page, limit, sortRaw, fieldsRaw });
+  const cached = getCache(cacheKey);
+  if (cached) return res.status(200).json(cached);
   const notes = await SystemApiNote.find({}).lean();
   const noteMap = new Map(
     notes.map((item) => [
@@ -51,7 +78,7 @@ const getAllSystemApis = asyncHandler(async (req, res) => {
     ]),
   );
 
-  const routes = getAllApiRoutes(req.app).map((item) => {
+  let routes = getAllApiRoutes(req.app).map((item) => {
     const method = String(item.method).toUpperCase();
     const path = normalizePath(item.path);
     const customNote = noteMap.get(`${method}:${path}`);
@@ -64,11 +91,60 @@ const getAllSystemApis = asyncHandler(async (req, res) => {
     };
   });
 
-  return res.status(200).json({
+  if (q) {
+    const regex = new RegExp(escapeRegex(q), "i");
+    routes = routes.filter(
+      (item) =>
+        regex.test(item.method) ||
+        regex.test(item.path) ||
+        regex.test(item.fullUrl) ||
+        regex.test(String(item.note || "")),
+    );
+  }
+
+  const sortDir = sortRaw.startsWith("-") ? -1 : 1;
+  const sortField = sortRaw.replace(/^-/, "");
+  const allowedSort = new Set(["method", "path", "note", "fullUrl"]);
+  if (allowedSort.has(sortField)) {
+    routes.sort((a, b) =>
+      String(a[sortField] || "").localeCompare(String(b[sortField] || ""), undefined, {
+        sensitivity: "base",
+      }) * sortDir,
+    );
+  }
+
+  const allowedFields = new Set(["method", "path", "note", "fullUrl"]);
+  const wantedFields = fieldsRaw
+    ? fieldsRaw
+        .split(",")
+        .map((x) => x.trim())
+        .filter((x) => allowedFields.has(x))
+    : null;
+  if (wantedFields && wantedFields.length) {
+    routes = routes.map((row) => {
+      const out = {};
+      for (const f of wantedFields) out[f] = row[f];
+      return out;
+    });
+  }
+
+  const total = routes.length;
+  const pagedRoutes = routes.slice(skip, skip + limit);
+
+  const payload = {
     success: true,
-    total: routes.length,
-    apis: routes,
-  });
+    total,
+    data: pagedRoutes,
+    apis: pagedRoutes,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
+  setCache(cacheKey, payload);
+  return res.status(200).json(payload);
 });
 
 const updateSystemApiNote = asyncHandler(async (req, res) => {

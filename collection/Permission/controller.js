@@ -7,6 +7,12 @@ const {
   isValidRoleName,
   normalizePath,
 } = require("../../service/permissionService");
+const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
 
 const getRoles = asyncHandler(async (_req, res) => {
   const dbRoles = await RolePermission.distinct("role");
@@ -22,6 +28,8 @@ const getRoles = asyncHandler(async (_req, res) => {
 
 const getPermissionsByRole = asyncHandler(async (req, res) => {
   const role = normalizeRoleName(req.params.role);
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const { page, limit, skip } = getPagination(req.query);
   if (!isValidRoleName(role)) {
     return res.status(400).json({
       success: false,
@@ -30,11 +38,28 @@ const getPermissionsByRole = asyncHandler(async (req, res) => {
   }
 
   const roleDoc = await RolePermission.findOne({ role }).lean();
+  let permissions = roleDoc?.permissions || [];
+  if (q) {
+    const regex = new RegExp(escapeRegex(q), "i");
+    permissions = permissions.filter(
+      (item) => regex.test(String(item.method || "")) || regex.test(String(item.path || "")),
+    );
+  }
+
+  const total = permissions.length;
+  const pagedPermissions = permissions.slice(skip, skip + limit);
 
   return res.status(200).json({
     success: true,
     role,
-    permissions: roleDoc?.permissions || [],
+    data: pagedPermissions,
+    permissions: pagedPermissions,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
   });
 });
 

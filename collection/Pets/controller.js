@@ -60,17 +60,90 @@ const createNewPets = asyncHandler(async (req, res) => {
   }
 });
 
+/** Escape string for safe use inside RegExp */
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
+const getSort = (query = {}, allowed = [], fallback = "namePet") => {
+  const raw = String(query.sort || "").trim();
+  if (!raw) return fallback;
+  const dir = raw.startsWith("-") ? -1 : 1;
+  const field = raw.replace(/^-/, "");
+  if (!allowed.includes(field)) return fallback;
+  return { [field]: dir };
+};
+const getFields = (query = {}, allowed = []) => {
+  const raw = String(query.fields || "").trim();
+  if (!raw) return "";
+  const picked = raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x && allowed.includes(x));
+  return picked.join(" ");
+};
+const ADMIN_SEARCH_CACHE_TTL_MS = 15000;
+const adminSearchCache = new Map();
+const getCachedAdminSearch = (key) => {
+  const hit = adminSearchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expireAt) {
+    adminSearchCache.delete(key);
+    return null;
+  }
+  return hit.value;
+};
+const setCachedAdminSearch = (key, value) => {
+  adminSearchCache.set(key, {
+    value,
+    expireAt: Date.now() + ADMIN_SEARCH_CACHE_TTL_MS,
+  });
+};
+
+const PET_SELECT_FIELDS = [
+  "_id",
+  "namePet",
+  "imgPet",
+  "petBreed",
+  "age",
+  "gender",
+  "description",
+  "price",
+  "quantity",
+  "deworming",
+  "vaccination",
+  "characteristic",
+  "sold",
+  "createdAt",
+  "updatedAt",
+];
+
 const getAllPets = asyncHandler(async (req, res) => {
   try {
-    const allPets = await Pets.find();
-    return res.status(200).json({ success: true, pets: allPets });
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "createdAt");
+    const select = getFields(req.query, PET_SELECT_FIELDS);
+    const [allPets, total] = await Promise.all([
+      Pets.find().select(select).sort(sort).skip(skip).limit(limit),
+      Pets.countDocuments({}),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: allPets,
+      pets: allPets,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Lỗi server." });
   }
 });
-
-/** Escape string for safe use inside RegExp */
-const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * Admin: pets theo loài (Dog/Cat), tìm theo tên thú, tên giống, mô tả (MongoDB regex, không phân biệt hoa thường).
@@ -88,26 +161,53 @@ const searchPetsForAdmin = asyncHandler(async (req, res) => {
       });
     }
 
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
+    const select = getFields(req.query, PET_SELECT_FIELDS);
+    const cacheKey = JSON.stringify({
+      specie,
+      q,
+      page,
+      limit,
+      sort: req.query.sort || "",
+      fields: req.query.fields || "",
+    });
+    const cached = getCachedAdminSearch(cacheKey);
+    if (cached) return res.status(200).json(cached);
+
     const formattedSpecie = formatString(specie);
     const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
+    const regex = q ? new RegExp(escapeRegex(q), "i") : null;
+    const filter = q
+      ? {
+          ...baseFilter,
+          $or: [
+            { namePet: regex },
+            { "petBreed.nameBreed": regex },
+            { description: regex },
+            { characteristic: regex },
+          ],
+        }
+      : baseFilter;
 
-    if (!q) {
-      const pets = await Pets.find(baseFilter).sort({ namePet: 1 });
-      return res.status(200).json(pets);
-    }
+    const [pets, total] = await Promise.all([
+      Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      Pets.countDocuments(filter),
+    ]);
 
-    const regex = new RegExp(escapeRegex(q), "i");
-    const pets = await Pets.find({
-      ...baseFilter,
-      $or: [
-        { namePet: regex },
-        { "petBreed.nameBreed": regex },
-        { description: regex },
-        { characteristic: regex },
-      ],
-    }).sort({ namePet: 1 });
-
-    return res.status(200).json(pets);
+    const payload = {
+      success: true,
+      data: pets,
+      pets,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+    setCachedAdminSearch(cacheKey, payload);
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -269,26 +369,56 @@ const getPetBySpecies = asyncHandler(async (req, res) => {
   }
 
   try {
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
+    const select = getFields(req.query, [
+      "_id",
+      "namePet",
+      "imgPet",
+      "petBreed",
+      "age",
+      "gender",
+      "description",
+      "price",
+      "quantity",
+      "deworming",
+      "vaccination",
+      "characteristic",
+      "sold",
+      "createdAt",
+      "updatedAt",
+    ]);
     const formattedSpecie = formatString(specie);
     const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
+    const regex = q ? new RegExp(escapeRegex(q), "i") : null;
+    const filter = q
+      ? {
+          ...baseFilter,
+          $or: [
+            { namePet: regex },
+            { "petBreed.nameBreed": regex },
+            { description: regex },
+            { characteristic: regex },
+          ],
+        }
+      : baseFilter;
 
-    let pets;
-    if (!q) {
-      pets = await Pets.find(baseFilter).sort({ namePet: 1 });
-    } else {
-      const regex = new RegExp(escapeRegex(q), "i");
-      pets = await Pets.find({
-        ...baseFilter,
-        $or: [
-          { namePet: regex },
-          { "petBreed.nameBreed": regex },
-          { description: regex },
-          { characteristic: regex },
-        ],
-      }).sort({ namePet: 1 });
-    }
+    const [pets, total] = await Promise.all([
+      Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      Pets.countDocuments(filter),
+    ]);
 
-    return res.status(200).json(pets);
+    return res.status(200).json({
+      success: true,
+      data: pets,
+      pets,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Server error",

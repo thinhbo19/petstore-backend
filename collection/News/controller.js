@@ -1,6 +1,29 @@
 const News = require("./model");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
+const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
+const getSort = (query = {}, allowed = [], fallback = "createdAt") => {
+  const raw = String(query.sort || "").trim();
+  if (!raw) return { [fallback]: -1 };
+  const dir = raw.startsWith("-") ? -1 : 1;
+  const field = raw.replace(/^-/, "");
+  if (!allowed.includes(field)) return { [fallback]: -1 };
+  return { [field]: dir };
+};
+const getFields = (query = {}, allowed = []) => {
+  const raw = String(query.fields || "").trim();
+  if (!raw) return "";
+  const picked = raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x && allowed.includes(x));
+  return picked.join(" ");
+};
 
 const createNews = asyncHandler(async (req, res) => {
   try {
@@ -29,8 +52,43 @@ const createNews = asyncHandler(async (req, res) => {
 
 const getAllNews = asyncHandler(async (req, res) => {
   try {
-    const news = await News.find();
-    return res.status(201).json({ success: true, news });
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["title", "createdAt", "updatedAt"], "createdAt");
+    const select = getFields(req.query, [
+      "_id",
+      "title",
+      "firstWord",
+      "content",
+      "image",
+      "createdAt",
+      "updatedAt",
+    ]);
+    const filter = q
+      ? {
+          $or: [
+            { title: { $regex: new RegExp(escapeRegex(q), "i") } },
+            { firstWord: { $regex: new RegExp(escapeRegex(q), "i") } },
+            { content: { $regex: new RegExp(escapeRegex(q), "i") } },
+          ],
+        }
+      : {};
+
+    const [news, total] = await Promise.all([
+      News.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      News.countDocuments(filter),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: news,
+      news,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

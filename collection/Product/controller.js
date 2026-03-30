@@ -14,6 +14,45 @@ const formatString = (input) => {
 };
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getPagination = (query = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
+  return { page, limit, skip: (page - 1) * limit };
+};
+const getSort = (query = {}, allowed = [], fallback = "nameProduct") => {
+  const raw = String(query.sort || "").trim();
+  if (!raw) return fallback;
+  const dir = raw.startsWith("-") ? -1 : 1;
+  const field = raw.replace(/^-/, "");
+  if (!allowed.includes(field)) return fallback;
+  return { [field]: dir };
+};
+const getFields = (query = {}, allowed = []) => {
+  const raw = String(query.fields || "").trim();
+  if (!raw) return "";
+  const picked = raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x && allowed.includes(x));
+  return picked.join(" ");
+};
+const ADMIN_SEARCH_CACHE_TTL_MS = 15000;
+const adminSearchCache = new Map();
+const getCachedAdminSearch = (key) => {
+  const hit = adminSearchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expireAt) {
+    adminSearchCache.delete(key);
+    return null;
+  }
+  return hit.value;
+};
+const setCachedAdminSearch = (key, value) => {
+  adminSearchCache.set(key, {
+    value,
+    expireAt: Date.now() + ADMIN_SEARCH_CACHE_TTL_MS,
+  });
+};
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -59,6 +98,21 @@ const createProduct = asyncHandler(async (req, res) => {
 const getAllProduct = asyncHandler(async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["nameProduct", "price", "createdAt"], "nameProduct");
+    const select = getFields(req.query, [
+      "_id",
+      "nameProduct",
+      "shortTitle",
+      "category",
+      "quantity",
+      "price",
+      "description",
+      "images",
+      "sold",
+      "createdAt",
+      "updatedAt",
+    ]);
 
     let filter = {};
     if (q) {
@@ -73,10 +127,20 @@ const getAllProduct = asyncHandler(async (req, res) => {
       };
     }
 
-    const product = await Product.find(filter).sort({ nameProduct: 1 });
+    const [product, total] = await Promise.all([
+      Product.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      Product.countDocuments(filter),
+    ]);
     return res.status(200).json({
       success: true,
+      data: product,
       product,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     });
   } catch (error) {
     throw new Error(error);
@@ -90,29 +154,61 @@ const getAllProduct = asyncHandler(async (req, res) => {
 const searchProductsForAdmin = asyncHandler(async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-
-    if (!q) {
-      const product = await Product.find().sort({ nameProduct: 1 });
-      return res.status(200).json({
-        success: true,
-        product,
-      });
-    }
-
-    const regex = new RegExp(escapeRegex(q), "i");
-    const product = await Product.find({
-      $or: [
-        { nameProduct: regex },
-        { shortTitle: regex },
-        { description: regex },
-        { "category.nameCate": regex },
-      ],
-    }).sort({ nameProduct: 1 });
-
-    return res.status(200).json({
-      success: true,
-      product,
+    const { page, limit, skip } = getPagination(req.query);
+    const sort = getSort(req.query, ["nameProduct", "price", "createdAt"], "nameProduct");
+    const select = getFields(req.query, [
+      "_id",
+      "nameProduct",
+      "shortTitle",
+      "category",
+      "quantity",
+      "price",
+      "description",
+      "images",
+      "sold",
+      "createdAt",
+      "updatedAt",
+    ]);
+    const cacheKey = JSON.stringify({
+      q,
+      page,
+      limit,
+      sort: req.query.sort || "",
+      fields: req.query.fields || "",
     });
+    const cached = getCachedAdminSearch(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+    const regex = q ? new RegExp(escapeRegex(q), "i") : null;
+    const filter = q
+      ? {
+          $or: [
+            { nameProduct: regex },
+            { shortTitle: regex },
+            { description: regex },
+            { "category.nameCate": regex },
+          ],
+        }
+      : {};
+    const [product, total] = await Promise.all([
+      Product.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+      Product.countDocuments(filter),
+    ]);
+
+    const payload = {
+      success: true,
+      data: product,
+      product,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+    setCachedAdminSearch(cacheKey, payload);
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(500).json({
       success: false,
