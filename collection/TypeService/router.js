@@ -34,6 +34,7 @@ router.post(
   uploadCloud.array("feedback_img"),
   TypeServiceControll.postRating
 );
+router.delete("/rating/:serId", [verifyAccessToken], TypeServiceControll.deleteRating);
 
 router.get("/ratings/:type", TypeServiceControll.getRatingsByType);
 

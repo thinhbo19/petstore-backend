@@ -7,6 +7,7 @@ const moment = require("moment");
 const querystring = require("qs");
 const crypto = require("crypto");
 const { createBookingOrderService } = require("../../service/bookingService");
+const PaymentSession = require("../PaymentSession/model");
 require("dotenv").config();
 
 function sortObject(obj) {
@@ -25,7 +26,8 @@ function sortObject(obj) {
   return sorted;
 }
 
-var inforOrder = {};
+const buildTxnRef = () =>
+  `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 const parseJsonField = (value, fallback) => {
   if (value == null || value === "") return fallback;
@@ -284,16 +286,6 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       });
     }
 
-    inforOrder.user = user;
-    inforOrder.petInfo = petInfo;
-    inforOrder.services = services;
-    inforOrder.voucher = voucher || null;
-    inforOrder.note = Note;
-    inforOrder.status = "Processing";
-    inforOrder.bookingDate = bookingDate;
-    inforOrder.paymentMethod = paymentMethod;
-    inforOrder.totalPrice = totalPrice;
-
     var ipAddr =
       req.headers["x-forwarded-for"] ||
       req.connection.remoteAddress ||
@@ -310,7 +302,7 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     var createDate = moment(date).format("YYYYMMDDHHmmss");
     const amount = totalPrice;
     var bankCode = req.body.bankCode || "";
-    let vnp_TxnRef = createDate;
+    let vnp_TxnRef = buildTxnRef();
 
     const locale = req.body.language || "vn";
 
@@ -342,6 +334,22 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     const paymentUrl =
       vnpUrl + "?" + querystring.stringify(sortedParams, { encode: false });
 
+    await PaymentSession.create({
+      txnRef: vnp_TxnRef,
+      kind: "booking",
+      payload: {
+        user,
+        petInfo,
+        services,
+        voucher: voucher || null,
+        Note,
+        status: "Processing",
+        bookingDate,
+        paymentMethod,
+        totalPrice,
+      },
+    });
+
     return res.status(200).json({ success: true, paymentUrl });
   } catch (error) {
     return res.status(500).json({
@@ -366,19 +374,43 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
     const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
     if (secureHash === signed) {
+      const txnRef = vnp_Params["vnp_TxnRef"];
+      const responseCode = String(req.query?.vnp_ResponseCode || "");
+      const session = await PaymentSession.findOne({ txnRef, kind: "booking" });
+
+      if (!session) {
+        return res.redirect(
+          `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=session_not_found`,
+        );
+      }
+
+      if (session.status === "success" && session.redirectTo) {
+        return res.redirect(session.redirectTo);
+      }
+
+      if (responseCode !== "00") {
+        session.status = "failed";
+        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=payment_declined`;
+        session.consumedAt = new Date();
+        await session.save();
+        return res.redirect(session.redirectTo);
+      }
+
       const message = await createBookingOrderService({
-        ...inforOrder,
+        ...session.payload,
       });
 
       if (message) {
-        return res.redirect(
-          `${process.env.URL_CLIENT}/booking-detail/${message._id}`
-        );
-      } else {
-        return res
-          .status(400)
-          .json({ success: false, message: "Booking order creation failed" });
+        session.status = "success";
+        session.consumedAt = new Date();
+        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=success&bookingId=${message._id}`;
+        await session.save();
+        return res.redirect(session.redirectTo);
       }
+
+      return res.redirect(
+        `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=create_booking_failed`,
+      );
     } else {
       return res
         .status(400)
@@ -477,12 +509,12 @@ const totalSalesByMonthBooking = asyncHandler(async (req, res) => {
   try {
     const salesAggregation = await Booking.aggregate([
       {
-        $match: { $expr: { $eq: [{ $year: "$realDate" }, parseInt(year)] } },
+        $match: { $expr: { $eq: [{ $year: "$bookingDate" }, parseInt(year)] } },
       },
       {
         $project: {
           totalPrice: 1,
-          month: { $month: "$realDate" },
+          month: { $month: "$bookingDate" },
         },
       },
       {

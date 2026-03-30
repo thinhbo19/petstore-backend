@@ -22,7 +22,7 @@ var productSchema = new mongoose.Schema({
     {
       postBy: { type: mongoose.Schema.ObjectId, ref: "User", require: true },
       username: { type: String },
-      start: { type: Number },
+      star: { type: Number },
       comment: { type: String },
       dateComment: { type: Date, default: Date.now() },
       feedback_img: { type: Array },

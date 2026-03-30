@@ -3,6 +3,7 @@ const Product = require("../Product/model");
 const Pet = require("../Pets/model");
 const User = require("../Users/model");
 const Voucher = require("../Voucher/model");
+const PaymentSession = require("../PaymentSession/model");
 const orderService = require("../../service/orderService");
 const asyncHandler = require("express-async-handler");
 const moment = require("moment");
@@ -29,11 +30,21 @@ function sortObject(obj) {
   return sorted;
 }
 
-var inforOrder = {};
+const buildTxnRef = () =>
+  `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 const createOrder = asyncHandler(async (req, res) => {
   try {
-    const { products, paymentMethod, coupon, address, note, orderBy } =
+    const {
+      products,
+      paymentMethod,
+      coupon,
+      address,
+      note,
+      orderBy,
+      receiverName,
+      receiverPhone,
+    } =
       req.body;
     const requesterId = String(req.user?._id || "");
     const requesterRole = req.user?.role;
@@ -154,6 +165,8 @@ const createOrder = asyncHandler(async (req, res) => {
       paymentMethod,
       coupon: coupon || null,
       address,
+      receiverName: receiverName || "",
+      receiverPhone: receiverPhone || "",
       Note: note || "",
       OrderBy: orderBy,
       status: "Processing",
@@ -543,9 +556,83 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
     });
   }
 });
+
+const requestAfterSalesByUser = asyncHandler(async (req, res) => {
+  const { orderID } = req.params;
+  const requesterId = String(req.user?._id || "");
+  const { type, reason } = req.body || {};
+
+  if (!["Return", "Refund", "Complaint"].includes(type)) {
+    return res.status(400).json({ success: false, message: "Invalid after-sales type" });
+  }
+  if (!reason || String(reason).trim().length < 5) {
+    return res.status(400).json({ success: false, message: "Reason is required" });
+  }
+
+  const order = await Order.findById(orderID);
+  if (!order) return res.status(404).json({ success: false, message: "No order found" });
+  if (String(order.OrderBy) !== requesterId) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  if (order.status !== "Success") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Only completed orders can request after-sales" });
+  }
+
+  order.afterSales = {
+    requested: true,
+    type,
+    reason: String(reason).trim(),
+    status: "Pending",
+    note: "",
+    requestedAt: new Date(),
+    updatedAt: new Date(),
+  };
+  await order.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "After-sales request submitted",
+    data: order,
+  });
+});
+
+const getAfterSalesRequests = asyncHandler(async (_req, res) => {
+  const requests = await Order.find({ "afterSales.requested": true })
+    .sort({ "afterSales.requestedAt": -1 })
+    .populate("OrderBy", "username email");
+  return res.status(200).json({ success: true, data: requests });
+});
+
+const updateAfterSalesRequest = asyncHandler(async (req, res) => {
+  const { orderID } = req.params;
+  const { status, note } = req.body || {};
+  if (!["Approved", "Rejected", "Pending"].includes(status)) {
+    return res.status(400).json({ success: false, message: "Invalid after-sales status" });
+  }
+  const order = await Order.findById(orderID);
+  if (!order || !order.afterSales?.requested) {
+    return res.status(404).json({ success: false, message: "After-sales request not found" });
+  }
+  order.afterSales.status = status;
+  order.afterSales.note = note || "";
+  order.afterSales.updatedAt = new Date();
+  await order.save();
+  return res.status(200).json({ success: true, message: "After-sales updated", data: order });
+});
 const handlePaymentUrl = asyncHandler(async (req, res) => {
   try {
-    const { orderBy, products, coupon, note, address, paymentMethod } =
+    const {
+      orderBy,
+      products,
+      coupon,
+      note,
+      address,
+      paymentMethod,
+      receiverName,
+      receiverPhone,
+    } =
       req.body;
     const requesterId = String(req.user?._id || "");
     const requesterRole = req.user?.role;
@@ -570,15 +657,6 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       products: payLineItems,
     });
 
-    inforOrder.orderBy = orderBy;
-    inforOrder.coupon = coupon || null;
-    inforOrder.note = note;
-    inforOrder.address = address;
-    inforOrder.status = "Processing";
-    inforOrder.paymentMethod = paymentMethod;
-    inforOrder.totalPrice = priceTotal;
-    inforOrder.products = payLineItems;
-
     var ipAddr =
       req.headers["x-forwarded-for"] ||
       req.connection.remoteAddress ||
@@ -595,7 +673,7 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     var createDate = moment(date).format("YYYYMMDDHHmmss");
     const amount = priceTotal;
     var bankCode = req.body.bankCode || "";
-    let vnp_TxnRef = createDate;
+    let vnp_TxnRef = buildTxnRef();
 
     const locale = req.body.language || "vn";
 
@@ -627,6 +705,23 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     const paymentUrl =
       vnpUrl + "?" + querystring.stringify(sortedParams, { encode: false });
 
+    await PaymentSession.create({
+      txnRef: vnp_TxnRef,
+      kind: "order",
+      payload: {
+        orderBy,
+        coupon: coupon || null,
+        note: note || "",
+        address,
+        receiverName: receiverName || "",
+        receiverPhone: receiverPhone || "",
+        status: "Processing",
+        paymentMethod,
+        totalPrice: priceTotal,
+        products: payLineItems,
+      },
+    });
+
     return res.status(200).json({ success: true, paymentUrl });
   } catch (error) {
     return res.status(500).json({
@@ -651,14 +746,36 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
     const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
     if (secureHash === signed) {
+      const txnRef = vnp_Params["vnp_TxnRef"];
+      const responseCode = String(req.query?.vnp_ResponseCode || "");
+      const session = await PaymentSession.findOne({ txnRef, kind: "order" });
+
+      if (!session) {
+        return res.redirect(
+          `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=session_not_found`,
+        );
+      }
+
+      if (session.status === "success" && session.redirectTo) {
+        return res.redirect(session.redirectTo);
+      }
+
+      if (responseCode !== "00") {
+        session.status = "failed";
+        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=payment_declined`;
+        session.consumedAt = new Date();
+        await session.save();
+        return res.redirect(session.redirectTo);
+      }
+
       const message = await orderService.createOrderService({
-        ...inforOrder,
+        ...session.payload,
       });
 
       if (message) {
         const userId = message.OrderBy;
         const user = await User.findById(userId);
-        const userCart = user.cart;
+        const userCart = user?.cart || [];
         const updatedCartProducts = userCart.filter((cartItem) => {
           return !message.products.some((orderItem) => {
             return (
@@ -667,31 +784,35 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
             );
           });
         });
-        user.cart = updatedCartProducts;
-        await user.save();
+        if (user) {
+          user.cart = updatedCartProducts;
+          await user.save();
+        }
 
-        const html = generateOrderConfirmationEmail(
-          user.username,
-          message._id,
-          message.products,
-          message.totalPrice
-        );
+        if (user?.email) {
+          const html = generateOrderConfirmationEmail(
+            user.username,
+            message._id,
+            message.products,
+            message.totalPrice,
+          );
+          await sendMailOrder({
+            email: user.email,
+            subject: "You have just placed an order successfully",
+            html,
+          });
+        }
 
-        const data = {
-          email: user.email,
-          subject: "You have just placed an order successfully",
-          html,
-        };
-
-        await sendMailOrder(data);
-        return res.redirect(
-          `${process.env.URL_CLIENT}/order-detail/${message._id}`
-        );
-      } else {
-        return res
-          .status(400)
-          .json({ success: false, message: "Order creation failed" });
+        session.status = "success";
+        session.consumedAt = new Date();
+        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=order&status=success&orderId=${message._id}`;
+        await session.save();
+        return res.redirect(session.redirectTo);
       }
+
+      return res.redirect(
+        `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=create_order_failed`,
+      );
     } else {
       return res
         .status(400)
@@ -961,6 +1082,9 @@ module.exports = {
   updateStatusOrder,
   confirmOrderReceivedByUser,
   cancelOrderByUser,
+  requestAfterSalesByUser,
+  getAfterSalesRequests,
+  updateAfterSalesRequest,
   handlePaymentUrl,
   handleVnPayReturn,
   hanldMoMoPay,

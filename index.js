@@ -18,6 +18,13 @@ const { renderSwaggerHome } = require("./swagger/homepage");
 
 const app = express();
 
+app.use((req, res, next) => {
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  req.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+  next();
+});
+
 // Nhiều môi trường: thêm origin vào mảng hoặc đọc từ biến môi trường (ví dụ split CORS_ORIGINS bằng dấu phẩy).
 app.use(
   cors({
@@ -35,6 +42,14 @@ app.use(cookieParser());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.get("/health", (_req, res) => {
+  return res.status(200).json({ status: "ok" });
+});
+
+app.get("/ready", (_req, res) => {
+  return res.status(200).json({ status: "ready" });
+});
 
 app.get("/api-docs", (req, res) => {
   const html = renderSwaggerHome(mergedTags);

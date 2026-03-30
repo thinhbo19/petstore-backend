@@ -48,6 +48,8 @@ const createOrderService = async ({
   paymentMethod,
   coupon,
   address,
+  receiverName,
+  receiverPhone,
   note,
   orderBy,
 }) => {
@@ -112,27 +114,21 @@ const createOrderService = async ({
     }
 
     if (coupon) {
-      const user = await User.findById(req.user._id).populate(
-        "Voucher.voucherID"
-      );
-      const userVouchers = user.Voucher.map((v) => v.voucherID.toString());
-
-      if (userVouchers.includes(coupon)) {
-        const voucher = await Voucher.findById(coupon);
-        if (voucher) {
-          totalPrice -= (totalPrice * voucher.discount) / 100;
-        } else {
-          return res.status(404).json({
-            success: false,
-            message: "Coupon not found",
-          });
-        }
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: "Coupon not valid for this user",
-        });
+      const user = await User.findById(orderBy).populate("Voucher.voucherID");
+      if (!user) {
+        throw new Error("User not found");
       }
+      const userVouchers = (user.Voucher || []).map((v) =>
+        String(v.voucherID?._id || v.voucherID),
+      );
+      if (!userVouchers.includes(String(coupon))) {
+        throw new Error("Coupon not valid for this user");
+      }
+      const voucher = await Voucher.findById(coupon);
+      if (!voucher) {
+        throw new Error("Coupon not found");
+      }
+      totalPrice = Math.max(0, totalPrice - (totalPrice * voucher.discount) / 100);
     }
 
     const newOrder = await Order.create({
@@ -141,6 +137,8 @@ const createOrderService = async ({
       paymentMethod,
       coupon: coupon || null,
       address,
+      receiverName: receiverName || "",
+      receiverPhone: receiverPhone || "",
       Note: note || "",
       OrderBy: orderBy,
       status: "Processing",

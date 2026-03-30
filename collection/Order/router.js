@@ -40,6 +40,21 @@ router.patch(
   [verifyAccessToken],
   OrderControl.cancelOrderByUser
 );
+router.post(
+  "/user/after-sales/:orderID",
+  [verifyAccessToken],
+  OrderControl.requestAfterSalesByUser
+);
+router.get(
+  "/after-sales",
+  [verifyAccessToken, isStrictAdmin],
+  OrderControl.getAfterSalesRequests
+);
+router.patch(
+  "/after-sales/:orderID",
+  [verifyAccessToken, isStrictAdmin],
+  OrderControl.updateAfterSalesRequest
+);
 
 router.delete(
   "/:orderID",

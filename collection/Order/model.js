@@ -33,6 +33,14 @@ var OrderSchema = new mongoose.Schema(
     address: {
       type: String,
     },
+    receiverName: {
+      type: String,
+      default: "",
+    },
+    receiverPhone: {
+      type: String,
+      default: "",
+    },
 
     Note: {
       type: String,
@@ -41,6 +49,19 @@ var OrderSchema = new mongoose.Schema(
     OrderBy: {
       type: mongoose.Types.ObjectId,
       ref: "User",
+    },
+    afterSales: {
+      requested: { type: Boolean, default: false },
+      type: { type: String, enum: ["Return", "Refund", "Complaint", ""], default: "" },
+      reason: { type: String, default: "" },
+      status: {
+        type: String,
+        enum: ["Pending", "Approved", "Rejected", ""],
+        default: "",
+      },
+      note: { type: String, default: "" },
+      requestedAt: { type: Date, default: null },
+      updatedAt: { type: Date, default: null },
     },
   },
   { timestamps: true }

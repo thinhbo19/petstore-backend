@@ -4,7 +4,7 @@ const Voucher = require("../collection/Voucher/model");
 
 const createBookingOrderService = async ({
   user,
-  pet,
+  petInfo,
   services,
   voucher,
   Note,
@@ -15,7 +15,7 @@ const createBookingOrderService = async ({
   try {
     const newOrder = await Booking.create({
       user,
-      pet,
+      petInfo,
       services,
       voucher,
       Note,

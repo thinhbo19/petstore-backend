@@ -1006,6 +1006,32 @@ const getCarts = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "An error occurred while fetching cart" });
   }
 });
+
+const getSellableItemInfo = async (id) => {
+  let item = await Pet.findById(id);
+  let type = "Pet";
+  if (!item) {
+    item = await Product.findById(id);
+    type = "Product";
+  }
+  if (!item) {
+    return { error: "Item not found in Pet or Product collections" };
+  }
+
+  const stock = Math.max(0, Number(item.quantity) || 0);
+  const isSold = Boolean(item.sold);
+  if (isSold || stock <= 0) {
+    return {
+      error: `${type} is out of stock`,
+      item,
+      type,
+      stock: 0,
+    };
+  }
+
+  return { item, type, stock };
+};
+
 const shoppingCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { id, quantity } = req.body;
@@ -1018,14 +1044,28 @@ const shoppingCart = asyncHandler(async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    if (!quantity || typeof quantity !== "number" || quantity <= 0) {
+    const desiredQuantity = Math.floor(Number(quantity));
+    if (!desiredQuantity || desiredQuantity <= 0) {
       return res.status(400).json({ message: "Invalid quantity value" });
+    }
+
+    const sellable = await getSellableItemInfo(id);
+    if (sellable.error) {
+      return res.status(400).json({ success: false, message: sellable.error, maxAvailable: 0 });
+    }
+    const maxAvailable = sellable.stock;
+    if (desiredQuantity > maxAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: `Số lượng vượt quá tồn kho hiện có (${maxAvailable})`,
+        maxAvailable,
+      });
     }
 
     const existingID = user.cart.findIndex((item) => item.id.toString() === id);
 
     if (existingID !== -1) {
-      user.cart[existingID].quantity = quantity;
+      user.cart[existingID].quantity = desiredQuantity;
       user.cart[existingID].newPrice =
         user.cart[existingID].info.price * user.cart[existingID].quantity;
 
@@ -1038,11 +1078,13 @@ const shoppingCart = asyncHandler(async (req, res) => {
           newPrice: user.cart[existingID].newPrice,
           images: user.cart[existingID].images,
         },
+        success: true,
+        maxAvailable,
         message: "Quantity updated in your cart",
       });
     }
-    let itemInfo = await Pet.findById(id);
-    if (itemInfo) {
+    const itemInfo = sellable.item;
+    if (sellable.type === "Pet") {
       images = itemInfo.imgPet[0];
       displayInfo = {
         name: itemInfo.namePet,
@@ -1054,8 +1096,7 @@ const shoppingCart = asyncHandler(async (req, res) => {
           itemInfo.namePet,
         )}`,
       };
-    } else if (!itemInfo) {
-      itemInfo = await Product.findById(id);
+    } else {
       images = itemInfo.images[0];
       displayInfo = {
         name: itemInfo.nameProduct,
@@ -1065,18 +1106,14 @@ const shoppingCart = asyncHandler(async (req, res) => {
           itemInfo.category.nameCate,
         )}/${generateSlug(itemInfo.nameProduct)}`,
       };
-    } else {
-      return res.status(404).json({
-        message: "Item not found in Pet or Product collections",
-      });
     }
 
-    const newPrice = itemInfo.price * quantity;
+    const newPrice = itemInfo.price * desiredQuantity;
 
     const newItem = {
       id,
       info: displayInfo,
-      quantity,
+      quantity: desiredQuantity,
       newPrice: newPrice,
       images,
     };
@@ -1084,14 +1121,16 @@ const shoppingCart = asyncHandler(async (req, res) => {
     user.cart.push({
       id,
       info: displayInfo,
-      quantity,
+      quantity: desiredQuantity,
       newPrice: newPrice,
       images,
     });
     await user.save();
     res.status(201).json({
+      success: true,
       message: "Successfully added to your cart",
       cart: newItem,
+      maxAvailable,
     });
   } catch (error) {
     console.error("Error:", error);
@@ -1102,6 +1141,13 @@ const updateCartQuantity = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { id, quantity } = req.body;
   try {
+    const desiredQuantity = Math.floor(Number(quantity));
+    if (!desiredQuantity || desiredQuantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid quantity value",
+      });
+    }
     const user = await User.findById(_id);
     if (!user) {
       return res.status(404).json({ message: "User not found", success: false });
@@ -1113,11 +1159,31 @@ const updateCartQuantity = asyncHandler(async (req, res) => {
         success: false,
       });
     }
-    user.cart[existingID].quantity = quantity;
+    const sellable = await getSellableItemInfo(id);
+    if (sellable.error) {
+      return res.status(400).json({ success: false, message: sellable.error, maxAvailable: 0 });
+    }
+    const maxAvailable = sellable.stock;
+    if (desiredQuantity > maxAvailable) {
+      return res.status(400).json({
+        success: false,
+        message: `Số lượng vượt quá tồn kho hiện có (${maxAvailable})`,
+        maxAvailable,
+      });
+    }
+
+    user.cart[existingID].quantity = desiredQuantity;
+    user.cart[existingID].newPrice =
+      user.cart[existingID].info.price * user.cart[existingID].quantity;
     await user.save();
     return res.status(200).json({
       message: "Cart quantity updated successfully",
       success: true,
+      maxAvailable,
+      cart: {
+        id,
+        quantity: user.cart[existingID].quantity,
+      },
     }); 
   } catch (error) {
     return res.status(500).json({ success: false, message: "An error occurred" });
