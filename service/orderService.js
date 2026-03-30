@@ -4,6 +4,45 @@ const Pet = require("../collection/Pets/model");
 const User = require("../collection/Users/model");
 const Voucher = require("../collection/Voucher/model");
 
+/**
+ * Ensures each line has a positive integer count (accepts `count` or `quantity` from client).
+ * Prevents NaN reaching Mongoose updates on Product/Pet/User.cart.quantity.
+ */
+function normalizeOrderLineItems(products) {
+  if (!Array.isArray(products) || products.length === 0) {
+    return { error: "products must be a non-empty array", normalized: null };
+  }
+  const normalized = [];
+  for (const item of products) {
+    if (item == null || item.id == null || item.id === "") {
+      return { error: "Each line item must have a valid id", normalized: null };
+    }
+    const rawQty = item.count != null ? item.count : item.quantity;
+    const count = Number(rawQty);
+    if (
+      !Number.isFinite(count) ||
+      count < 1 ||
+      count > 1_000_000 ||
+      Math.floor(count) !== count
+    ) {
+      return {
+        error:
+          "Each line item must have a valid positive integer count (or quantity)",
+        normalized: null,
+      };
+    }
+    const line = { id: item.id, count };
+    if (item.price != null) {
+      const p = Number(item.price);
+      if (Number.isFinite(p)) line.price = p;
+    }
+    if (typeof item.img === "string") line.img = item.img;
+    if (typeof item.name === "string") line.name = item.name;
+    normalized.push(line);
+  }
+  return { error: null, normalized };
+}
+
 const createOrderService = async ({
   products,
   paymentMethod,
@@ -17,9 +56,15 @@ const createOrderService = async ({
       throw new Error("Missing required fields");
     }
 
+    const { error: normErr, normalized } = normalizeOrderLineItems(products);
+    if (normErr) {
+      throw new Error(normErr);
+    }
+    const lineItems = normalized;
+
     let totalPrice = 0;
 
-    for (let item of products) {
+    for (let item of lineItems) {
       let product = await Product.findById(item.id);
       if (product) {
         if (
@@ -82,7 +127,7 @@ const createOrderService = async ({
     }
 
     const newOrder = await Order.create({
-      products,
+      products: lineItems,
       totalPrice,
       paymentMethod,
       coupon: coupon || null,
@@ -92,7 +137,7 @@ const createOrderService = async ({
       status: "Processing",
     });
 
-    for (let item of products) {
+    for (let item of lineItems) {
       let product = await Product.findById(item.id);
       let pet = await Pet.findById(item.id);
 
@@ -122,9 +167,15 @@ const createOrderService = async ({
 };
 
 const returnTotalPrice = async ({ products }) => {
+  const { error: normErr, normalized } = normalizeOrderLineItems(products);
+  if (normErr) {
+    throw new Error(normErr);
+  }
+  const lineItems = normalized;
+
   let totalPrice = 0;
 
-  for (let item of products) {
+  for (let item of lineItems) {
     let product = await Product.findById(item.id);
     if (product) {
       if (!product.quantity || product.quantity <= 0 || product.sold === true) {
@@ -163,4 +214,5 @@ const returnTotalPrice = async ({ products }) => {
 module.exports = {
   createOrderService,
   returnTotalPrice,
+  normalizeOrderLineItems,
 };

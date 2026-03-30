@@ -52,9 +52,18 @@ const createOrder = asyncHandler(async (req, res) => {
       });
     }
 
+    const { error: lineErr, normalized: lineItems } =
+      orderService.normalizeOrderLineItems(products);
+    if (lineErr) {
+      return res.status(400).json({
+        success: false,
+        message: lineErr,
+      });
+    }
+
     let totalPrice = 0;
 
-    for (let item of products) {
+    for (let item of lineItems) {
       let product = await Product.findById(item.id);
       if (product) {
         if (
@@ -130,7 +139,7 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     const newOrder = await Order.create({
-      products,
+      products: lineItems,
       totalPrice,
       paymentMethod,
       coupon: coupon || null,
@@ -140,45 +149,60 @@ const createOrder = asyncHandler(async (req, res) => {
       status: "Processing",
     });
 
-    for (let item of products) {
-      let product = await Product.findById(item.id);
-      let pet = await Pet.findById(item.id);
-      if (product) {
-        let newQuantityProd = product.quantity - item.count;
-        await Product.findByIdAndUpdate(item.id, {
-          quantity: newQuantityProd,
-          sold: newQuantityProd === 0,
-        });
-      } else {
-        let newQuantityPet = pet.quantity - item.count;
-        await Pet.findByIdAndUpdate(item.id, {
-          quantity: newQuantityPet,
-          sold: newQuantityPet === 0,
-        });
-      }
-    }
-
     if (!newOrder) {
       return res.status(500).json({
         success: false,
         message: "Failed to create order",
       });
     }
-    const user = await User.findById(orderBy);
-    if (user?.cart?.length) {
-      for (const item of products) {
-        const idx = user.cart.findIndex((c) => c.id.equals(item.id));
-        if (idx >= 0) {
-          const remaining = user.cart[idx].quantity - item.count;
-          if (remaining <= 0) {
-            user.cart.splice(idx, 1);
-          } else {
-            user.cart[idx].quantity = remaining;
-          }
+
+    try {
+      for (let item of lineItems) {
+        let product = await Product.findById(item.id);
+        let pet = await Pet.findById(item.id);
+        if (product) {
+          let newQuantityProd = product.quantity - item.count;
+          await Product.findByIdAndUpdate(item.id, {
+            quantity: newQuantityProd,
+            sold: newQuantityProd === 0,
+          });
+        } else if (pet) {
+          let newQuantityPet = pet.quantity - item.count;
+          await Pet.findByIdAndUpdate(item.id, {
+            quantity: newQuantityPet,
+            sold: newQuantityPet === 0,
+          });
         }
       }
-      await user.save();
+
+      const user = await User.findById(orderBy);
+      if (user?.cart?.length) {
+        for (const item of lineItems) {
+          const idx = user.cart.findIndex((c) => c.id.equals(item.id));
+          if (idx >= 0) {
+            const cartQty = Number(user.cart[idx].quantity);
+            const safeCartQty = Number.isFinite(cartQty) ? cartQty : 0;
+            const remaining = safeCartQty - item.count;
+            if (remaining <= 0) {
+              user.cart.splice(idx, 1);
+            } else {
+              user.cart[idx].quantity = remaining;
+            }
+          }
+        }
+        await user.save();
+      }
+    } catch (invErr) {
+      await Order.findByIdAndDelete(newOrder._id);
+      console.error("createOrder finalize error:", invErr?.message || invErr);
+      return res.status(500).json({
+        success: false,
+        message:
+          "Không thể hoàn tất đơn hàng (cập nhật kho hoặc giỏ). Đơn tạm đã được hủy.",
+      });
     }
+
+    const user = await User.findById(orderBy);
 
     // Email không được làm fail API: đơn đã tạo + kho đã trừ; SMTP hoặc template lỗi chỉ ghi log.
     if (user?.email) {
@@ -513,7 +537,18 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       });
     }
 
-    const priceTotal = await orderService.returnTotalPrice({ products });
+    const { error: payLineErr, normalized: payLineItems } =
+      orderService.normalizeOrderLineItems(products);
+    if (payLineErr) {
+      return res.status(400).json({
+        success: false,
+        message: payLineErr,
+      });
+    }
+
+    const priceTotal = await orderService.returnTotalPrice({
+      products: payLineItems,
+    });
 
     inforOrder.orderBy = orderBy;
     inforOrder.coupon = coupon || null;
@@ -522,7 +557,7 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     inforOrder.status = "Processing";
     inforOrder.paymentMethod = paymentMethod;
     inforOrder.totalPrice = priceTotal;
-    inforOrder.products = products;
+    inforOrder.products = payLineItems;
 
     var ipAddr =
       req.headers["x-forwarded-for"] ||
