@@ -69,6 +69,6 @@ router.patch(
 router.post("/createUrl", [verifyAccessToken], OrderControl.handlePaymentUrl);
 router.get("/vnpay/vnpay_return", OrderControl.handleVnPayReturn);
 
-router.post("/momopay", [verifyAccessToken], OrderControl.hanldMoMoPay);
+router.post("/momopay", [verifyAccessToken], OrderControl.handleMoMoPay);
 
 module.exports = router;

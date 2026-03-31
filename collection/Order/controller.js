@@ -1,37 +1,78 @@
 const Order = require("./model");
-const Product = require("../Product/model");
-const Pet = require("../Pets/model");
 const User = require("../Users/model");
 const Voucher = require("../Voucher/model");
 const PaymentSession = require("../PaymentSession/model");
 const orderService = require("../../service/orderService");
+const orderPaymentService = require("../../service/orderPaymentService");
+const orderFinalizeService = require("../../service/orderFinalizeService");
 const asyncHandler = require("express-async-handler");
-const moment = require("moment");
-const querystring = require("qs");
 const crypto = require("crypto");
-const { generateOrderConfirmationEmail } = require("../../service/emailOrder");
-const sendMailOrder = require("../../utils/sendMailOrderjs");
 const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
 require("dotenv").config();
 
-function sortObject(obj) {
-  let sorted = {};
-  let str = [];
-  let key;
-  for (key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      str.push(encodeURIComponent(key));
-    }
-  }
-  str.sort();
-  for (key = 0; key < str.length; key++) {
-    sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
-  }
-  return sorted;
+function mapOrderItemErrorToHttp(calcErr) {
+  const message = calcErr?.message || "Invalid order items";
+  const status = message.includes("not found") ? 404 : 400;
+  return { status, message };
 }
 
-const buildTxnRef = () =>
-  `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+function sendServerError(res, error, message = "Server error") {
+  return res.status(500).json({
+    success: false,
+    message,
+    error: error?.message,
+  });
+}
+
+function buildOrderPopulateQuery(query) {
+  return query
+    .populate("OrderBy", "username email mobile")
+    .populate({
+      path: "coupon",
+      model: "Voucher",
+      select: "nameVoucher",
+    });
+}
+
+async function findOrderByIdWithRelations(orderID) {
+  return buildOrderPopulateQuery(Order.findById(orderID)).exec();
+}
+
+async function findOrdersByUserWithRelations(userID) {
+  return buildOrderPopulateQuery(Order.find({ OrderBy: userID })).exec();
+}
+
+async function applyCouponDiscountForUser({ orderBy, coupon, totalPrice }) {
+  if (!coupon) return { totalPrice, error: null, status: 200 };
+
+  const userForCoupon = await User.findById(orderBy).populate("Voucher.voucherID");
+  const userVouchers = (userForCoupon?.Voucher || []).map((v) => v.voucherID);
+  const matchedUserVoucher = userVouchers.find((v) => v?._id?.equals(coupon));
+
+  if (!matchedUserVoucher) {
+    return {
+      totalPrice,
+      error: "Coupon not valid for this user",
+      status: 400,
+    };
+  }
+
+  const voucherDoc = await Voucher.findById(coupon);
+  if (!voucherDoc) {
+    return {
+      totalPrice,
+      error: "Coupon not found",
+      status: 404,
+    };
+  }
+
+  const discountAmount = (totalPrice * voucherDoc.discount) / 100;
+  return {
+    totalPrice: Math.max(0, totalPrice - discountAmount),
+    error: null,
+    status: 200,
+  };
+}
 
 const createOrder = asyncHandler(async (req, res) => {
   try {
@@ -73,91 +114,24 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     let totalPrice = 0;
-
-    for (let item of lineItems) {
-      let product = await Product.findById(item.id);
-      if (product) {
-        const stockProd = Number(product.quantity);
-        if (
-          !Number.isFinite(stockProd) ||
-          stockProd < 1 ||
-          product.sold === true
-        ) {
-          return res.status(400).json({
-            success: false,
-            message: `Product ${product.nameProduct} is out of stock`,
-          });
-        }
-        if (item.count > stockProd) {
-          return res.status(400).json({
-            success: false,
-            message: `Product ${product.nameProduct} has only ${stockProd} items in stock`,
-          });
-        }
-
-        const unitPrice = Number(product.price);
-        totalPrice +=
-          (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
-      } else {
-        let pet = await Pet.findById(item.id);
-        if (pet) {
-          const stockPet = Number(pet.quantity);
-          if (
-            !Number.isFinite(stockPet) ||
-            stockPet < 1 ||
-            pet.sold === true
-          ) {
-            return res.status(400).json({
-              success: false,
-              message: `Pet ${pet.namePet} is out of stock`,
-            });
-          }
-          if (item.count > stockPet) {
-            return res.status(400).json({
-              success: false,
-              message: `Pet ${pet.namePet} has only ${stockPet} items in stock`,
-            });
-          }
-
-          const petPrice = Number(pet.price);
-          totalPrice +=
-            (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
-        } else {
-          return res.status(404).json({
-            success: false,
-            message: `Item with ID ${item.id} not found in products or pets`,
-          });
-        }
-      }
+    try {
+      totalPrice = await orderService.returnTotalPrice({ products: lineItems });
+    } catch (calcErr) {
+      const { status, message } = mapOrderItemErrorToHttp(calcErr);
+      return res.status(status).json({ success: false, message });
     }
 
-    if (coupon) {
-      const userForCoupon = await User.findById(orderBy).populate(
-        "Voucher.voucherID",
-      );
-      const userVouchers = userForCoupon.Voucher.map((v) => v.voucherID);
-      const matchedUserVoucher = userVouchers.find((v) =>
-        v._id.equals(coupon),
-      );
-
-      if (matchedUserVoucher) {
-        const voucherDoc = await Voucher.findById(coupon);
-        if (voucherDoc) {
-          const discountAmount = (totalPrice * voucherDoc.discount) / 100;
-          totalPrice = Math.max(0, totalPrice - discountAmount);
-        } else {
-          return res.status(404).json({
-            success: false,
-            message: "Coupon not found",
-          });
-        }
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: "Coupon not valid for this user",
-        });
-      }
+    const couponResult = await applyCouponDiscountForUser({
+      orderBy,
+      coupon,
+      totalPrice,
+    });
+    if (couponResult.error) {
+      return res
+        .status(couponResult.status)
+        .json({ success: false, message: couponResult.error });
     }
+    totalPrice = couponResult.totalPrice;
 
     const newOrder = await Order.create({
       products: lineItems,
@@ -180,51 +154,8 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     try {
-      for (let item of lineItems) {
-        let product = await Product.findById(item.id);
-        let pet = await Pet.findById(item.id);
-        if (product) {
-          const stockProd = Number(product.quantity);
-          if (!Number.isFinite(stockProd)) {
-            throw new Error(
-              `Invalid quantity in DB for product ${product.nameProduct}`,
-            );
-          }
-          const newQuantityProd = stockProd - item.count;
-          await Product.findByIdAndUpdate(item.id, {
-            quantity: newQuantityProd,
-            sold: newQuantityProd === 0,
-          });
-        } else if (pet) {
-          const stockPet = Number(pet.quantity);
-          if (!Number.isFinite(stockPet)) {
-            throw new Error(`Invalid quantity in DB for pet ${pet.namePet}`);
-          }
-          const newQuantityPet = stockPet - item.count;
-          await Pet.findByIdAndUpdate(item.id, {
-            quantity: newQuantityPet,
-            sold: newQuantityPet === 0,
-          });
-        }
-      }
-
-      const user = await User.findById(orderBy);
-      if (user?.cart?.length) {
-        for (const item of lineItems) {
-          const idx = user.cart.findIndex((c) => c.id.equals(item.id));
-          if (idx >= 0) {
-            const cartQty = Number(user.cart[idx].quantity);
-            const safeCartQty = Number.isFinite(cartQty) ? cartQty : 0;
-            const remaining = safeCartQty - item.count;
-            if (!Number.isFinite(remaining) || remaining <= 0) {
-              user.cart.splice(idx, 1);
-            } else {
-              user.cart[idx].quantity = remaining;
-            }
-          }
-        }
-        await user.save();
-      }
+      await orderFinalizeService.decreaseInventoryByLineItems(lineItems);
+      await orderFinalizeService.decreaseUserCartQuantities({ userId: orderBy, lineItems });
     } catch (invErr) {
       await Order.findByIdAndDelete(newOrder._id);
       console.error("createOrder finalize error:", invErr?.message || invErr);
@@ -236,25 +167,7 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findById(orderBy);
-
-    // Email không được làm fail API: đơn đã tạo + kho đã trừ; SMTP hoặc template lỗi chỉ ghi log.
-    if (user?.email) {
-      try {
-        const html = generateOrderConfirmationEmail(
-          user.username || "Khách hàng",
-          newOrder._id,
-          newOrder.products,
-          newOrder.totalPrice
-        );
-        await sendMailOrder({
-          email: user.email,
-          subject: "You have just placed an order successfully",
-          html,
-        });
-      } catch (mailErr) {
-        console.error("Order confirmation email failed:", mailErr?.message || mailErr);
-      }
-    }
+    await orderFinalizeService.sendOrderConfirmationEmailSafe({ user, order: newOrder });
 
     return res.status(201).json({
       success: true,
@@ -323,14 +236,7 @@ const getOneOrder = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
 
   try {
-    const orders = await Order.findById(orderID)
-      .populate("OrderBy", "username email mobile")
-      .populate({
-        path: "coupon",
-        model: "Voucher",
-        select: "nameVoucher",
-      })
-      .exec();
+    const orders = await findOrderByIdWithRelations(orderID);
 
     if (!orders) {
       return res.status(404).json({
@@ -365,14 +271,7 @@ const getUserOrder = asyncHandler(async (req, res) => {
       });
     }
 
-    const orders = await Order.find({ OrderBy: userID })
-      .populate("OrderBy", "username email mobile")
-      .populate({
-        path: "coupon",
-        model: "Voucher",
-        select: "nameVoucher",
-      })
-      .exec();
+    const orders = await findOrdersByUserWithRelations(userID);
 
     if (!orders) {
       return res.status(404).json({
@@ -476,28 +375,8 @@ const cancelOrderByUser = asyncHandler(async (req, res) => {
     });
   }
 
-  const products = order.products || [];
-  for (const item of products) {
-    if (!item?.id || !item?.count) continue;
-    const pid = item.id;
-    const product = await Product.findById(pid);
-    if (product) {
-      const newQty = (product.quantity ?? 0) + item.count;
-      await Product.findByIdAndUpdate(pid, {
-        quantity: newQty,
-        sold: newQty === 0,
-      });
-    } else {
-      const pet = await Pet.findById(pid);
-      if (pet) {
-        const newQty = (pet.quantity ?? 0) + item.count;
-        await Pet.findByIdAndUpdate(pid, {
-          quantity: newQty,
-          sold: newQty === 0,
-        });
-      }
-    }
-  }
+  const products = (order.products || []).filter((item) => item?.id && item?.count);
+  await orderFinalizeService.increaseInventoryByLineItems(products);
 
   order.status = "Cancelled";
   await order.save();
@@ -515,14 +394,7 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
   const requesterRole = req.user?.role;
 
   try {
-    const order = await Order.findById(orderID)
-      .populate("OrderBy", "username email mobile")
-      .populate({
-        path: "coupon",
-        model: "Voucher",
-        select: "nameVoucher",
-      })
-      .exec();
+    const order = await findOrderByIdWithRelations(orderID);
 
     if (!order) {
       return res.status(404).json({
@@ -657,56 +529,15 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       products: payLineItems,
     });
 
-    var ipAddr =
-      req.headers["x-forwarded-for"] ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
-      req.connection.socket.remoteAddress;
-
-    var tmnCode = process.env.VNP_TMNCODE;
-    var secretKey = process.env.VNP_HASHSECRET;
-    var vnpUrl = process.env.VNP_URL;
-    var returnUrl = process.env.VNP_RETURNURL;
-
-    var date = new Date();
-
-    var createDate = moment(date).format("YYYYMMDDHHmmss");
-    const amount = priceTotal;
-    var bankCode = req.body.bankCode || "";
-    let vnp_TxnRef = buildTxnRef();
-
-    const locale = req.body.language || "vn";
-
-    var currCode = "VND";
-    var vnp_Params = {};
-    vnp_Params["vnp_Version"] = "2.1.0";
-    vnp_Params["vnp_Command"] = "pay";
-    vnp_Params["vnp_TmnCode"] = tmnCode;
-    vnp_Params["vnp_Locale"] = locale;
-    vnp_Params["vnp_CurrCode"] = currCode;
-    vnp_Params["vnp_TxnRef"] = vnp_TxnRef;
-    vnp_Params["vnp_OrderInfo"] = "Thanh toan cho ma GD:" + vnp_TxnRef;
-    vnp_Params["vnp_OrderType"] = "other";
-    vnp_Params["vnp_Amount"] = amount * 100;
-    vnp_Params["vnp_ReturnUrl"] = returnUrl;
-    vnp_Params["vnp_IpAddr"] = ipAddr;
-    vnp_Params["vnp_CreateDate"] = createDate;
-    if (bankCode !== null && bankCode !== "") {
-      vnp_Params["vnp_BankCode"] = bankCode;
-    }
-
-    const sortedParams = sortObject(vnp_Params);
-
-    const signData = querystring.stringify(sortedParams, { encode: false });
-    const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-    sortedParams["vnp_SecureHash"] = signed;
-
-    const paymentUrl =
-      vnpUrl + "?" + querystring.stringify(sortedParams, { encode: false });
+    const { txnRef, paymentUrl } = orderPaymentService.buildVnPayPaymentUrl({
+      amount: priceTotal,
+      bankCode: req.body.bankCode || "",
+      locale: req.body.language || "vn",
+      ipAddr: orderPaymentService.getClientIp(req),
+    });
 
     await PaymentSession.create({
-      txnRef: vnp_TxnRef,
+      txnRef,
       kind: "order",
       payload: {
         orderBy,
@@ -724,30 +555,15 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
 
     return res.status(200).json({ success: true, paymentUrl });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error",
-      error: error.message,
-    });
+    return sendServerError(res, error, "Error");
   }
 });
 const handleVnPayReturn = asyncHandler(async (req, res) => {
   try {
-    let vnp_Params = req.query;
-    let secureHash = vnp_Params["vnp_SecureHash"];
+    const { isValid, txnRef, responseCode } =
+      orderPaymentService.verifyVnPayReturnQuery(req.query);
 
-    delete vnp_Params["vnp_SecureHash"];
-    delete vnp_Params["vnp_SecureHashType"];
-
-    vnp_Params = sortObject(vnp_Params);
-    const secretKey = process.env.VNP_HASHSECRET;
-    const signData = querystring.stringify(vnp_Params, { encode: false });
-    const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-
-    if (secureHash === signed) {
-      const txnRef = vnp_Params["vnp_TxnRef"];
-      const responseCode = String(req.query?.vnp_ResponseCode || "");
+    if (isValid) {
       const session = await PaymentSession.findOne({ txnRef, kind: "order" });
 
       if (!session) {
@@ -774,34 +590,11 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
 
       if (message) {
         const userId = message.OrderBy;
-        const user = await User.findById(userId);
-        const userCart = user?.cart || [];
-        const updatedCartProducts = userCart.filter((cartItem) => {
-          return !message.products.some((orderItem) => {
-            return (
-              cartItem.id.equals(orderItem.id) &&
-              cartItem.quantity === orderItem.count
-            );
-          });
+        const user = await orderFinalizeService.removeExactPurchasedItemsFromCart({
+          userId,
+          purchasedProducts: message.products || [],
         });
-        if (user) {
-          user.cart = updatedCartProducts;
-          await user.save();
-        }
-
-        if (user?.email) {
-          const html = generateOrderConfirmationEmail(
-            user.username,
-            message._id,
-            message.products,
-            message.totalPrice,
-          );
-          await sendMailOrder({
-            email: user.email,
-            subject: "You have just placed an order successfully",
-            html,
-          });
-        }
+        await orderFinalizeService.sendOrderConfirmationEmailSafe({ user, order: message });
 
         session.status = "success";
         session.consumedAt = new Date();
@@ -819,14 +612,10 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         .json({ success: false, message: "Invalid signature" });
     }
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
+    return sendServerError(res, error, "Server error");
   }
 });
-const hanldMoMoPay = asyncHandler(async (req, res) => {
+const handleMoMoPay = asyncHandler(async (req, res) => {
   try {
     const partnerCode = process.env.MOMO_PARTNER_CODE;
     const accessKey = process.env.MOMO_ACCESS_KEY;
@@ -883,9 +672,7 @@ const hanldMoMoPay = asyncHandler(async (req, res) => {
         .json({ success: false, message: "Failed to create MoMo payment URL" });
     }
   } catch (error) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: error.message });
+    return sendServerError(res, error, "Server error");
   }
 });
 const totalPriceOrder = asyncHandler(async (req, res) => {
@@ -1087,7 +874,9 @@ module.exports = {
   updateAfterSalesRequest,
   handlePaymentUrl,
   handleVnPayReturn,
-  hanldMoMoPay,
+  handleMoMoPay,
+  // Backward-compatible export name to avoid breaking old imports.
+  hanldMoMoPay: handleMoMoPay,
   totalPriceOrder,
   mostPurchasedProduct,
   topUsersByOrders,

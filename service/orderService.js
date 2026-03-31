@@ -43,6 +43,86 @@ function normalizeOrderLineItems(products) {
   return { error: null, normalized };
 }
 
+async function getSellableItemById(itemId) {
+  const product = await Product.findById(itemId);
+  if (product) {
+    return {
+      model: "product",
+      doc: product,
+      name: product.nameProduct,
+      price: Number(product.price),
+      stock: Number(product.quantity),
+    };
+  }
+
+  const pet = await Pet.findById(itemId);
+  if (pet) {
+    return {
+      model: "pet",
+      doc: pet,
+      name: pet.namePet,
+      price: Number(pet.price),
+      stock: Number(pet.quantity),
+    };
+  }
+
+  return null;
+}
+
+function validateStock(item, sellable) {
+  if (!sellable) {
+    throw new Error(`Item with ID ${item.id} not found in products or pets`);
+  }
+
+  if (
+    !Number.isFinite(sellable.stock) ||
+    sellable.stock < 1 ||
+    sellable.doc.sold === true
+  ) {
+    throw new Error(
+      `${sellable.model === "product" ? "Product" : "Pet"} ${sellable.name} is out of stock`
+    );
+  }
+
+  if (item.count > sellable.stock) {
+    throw new Error(
+      `${sellable.model === "product" ? "Product" : "Pet"} ${sellable.name} has only ${sellable.stock} items in stock`
+    );
+  }
+}
+
+async function computeTotalFromLineItems(lineItems) {
+  let totalPrice = 0;
+
+  for (const item of lineItems) {
+    const sellable = await getSellableItemById(item.id);
+    validateStock(item, sellable);
+    totalPrice += (Number.isFinite(sellable.price) ? sellable.price : 0) * item.count;
+  }
+
+  return totalPrice;
+}
+
+async function decrementInventoryFromLineItems(lineItems) {
+  for (const item of lineItems) {
+    const sellable = await getSellableItemById(item.id);
+    if (!sellable) continue;
+
+    if (!Number.isFinite(sellable.stock)) {
+      throw new Error(
+        `Invalid quantity in DB for ${sellable.model} ${sellable.name}`
+      );
+    }
+
+    const newQuantity = sellable.stock - item.count;
+    const Model = sellable.model === "product" ? Product : Pet;
+    await Model.findByIdAndUpdate(item.id, {
+      quantity: newQuantity,
+      sold: newQuantity === 0,
+    });
+  }
+}
+
 const createOrderService = async ({
   products,
   paymentMethod,
@@ -53,134 +133,56 @@ const createOrderService = async ({
   note,
   orderBy,
 }) => {
-  try {
-    if (!products || !address || !orderBy) {
-      throw new Error("Missing required fields");
-    }
-
-    const { error: normErr, normalized } = normalizeOrderLineItems(products);
-    if (normErr) {
-      throw new Error(normErr);
-    }
-    const lineItems = normalized;
-
-    let totalPrice = 0;
-
-    for (let item of lineItems) {
-      let product = await Product.findById(item.id);
-      if (product) {
-        const stockProd = Number(product.quantity);
-        if (
-          !Number.isFinite(stockProd) ||
-          stockProd < 1 ||
-          product.sold === true
-        ) {
-          throw new Error(`Product ${product.nameProduct} is out of stock`);
-        }
-        if (item.count > stockProd) {
-          throw new Error(
-            `Product ${product.nameProduct} has only ${stockProd} items in stock`
-          );
-        }
-
-        const unitPrice = Number(product.price);
-        totalPrice +=
-          (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
-      } else {
-        let pet = await Pet.findById(item.id);
-        if (pet) {
-          const stockPet = Number(pet.quantity);
-          if (
-            !Number.isFinite(stockPet) ||
-            stockPet < 1 ||
-            pet.sold === true
-          ) {
-            throw new Error(`Pet ${pet.namePet} is out of stock`);
-          }
-          if (item.count > stockPet) {
-            throw new Error(
-              `Pet ${pet.namePet} has only ${stockPet} items in stock`
-            );
-          }
-
-          const petPrice = Number(pet.price);
-          totalPrice += (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
-        } else {
-          throw new Error(
-            `Item with ID ${item.id} not found in products or pets`
-          );
-        }
-      }
-    }
-
-    if (coupon) {
-      const user = await User.findById(orderBy).populate("Voucher.voucherID");
-      if (!user) {
-        throw new Error("User not found");
-      }
-      const userVouchers = (user.Voucher || []).map((v) =>
-        String(v.voucherID?._id || v.voucherID),
-      );
-      if (!userVouchers.includes(String(coupon))) {
-        throw new Error("Coupon not valid for this user");
-      }
-      const voucher = await Voucher.findById(coupon);
-      if (!voucher) {
-        throw new Error("Coupon not found");
-      }
-      totalPrice = Math.max(0, totalPrice - (totalPrice * voucher.discount) / 100);
-    }
-
-    const newOrder = await Order.create({
-      products: lineItems,
-      totalPrice,
-      paymentMethod,
-      coupon: coupon || null,
-      address,
-      receiverName: receiverName || "",
-      receiverPhone: receiverPhone || "",
-      Note: note || "",
-      OrderBy: orderBy,
-      status: "Processing",
-    });
-
-    for (let item of lineItems) {
-      let product = await Product.findById(item.id);
-      let pet = await Pet.findById(item.id);
-
-      if (product) {
-        const stockProd = Number(product.quantity);
-        if (!Number.isFinite(stockProd)) {
-          throw new Error(
-            `Invalid quantity in DB for product ${product.nameProduct}`
-          );
-        }
-        const newQuantityProd = stockProd - item.count;
-        await Product.findByIdAndUpdate(item.id, {
-          quantity: newQuantityProd,
-          sold: newQuantityProd === 0,
-        });
-      } else if (pet) {
-        const stockPet = Number(pet.quantity);
-        if (!Number.isFinite(stockPet)) {
-          throw new Error(`Invalid quantity in DB for pet ${pet.namePet}`);
-        }
-        const newQuantityPet = stockPet - item.count;
-        await Pet.findByIdAndUpdate(item.id, {
-          quantity: newQuantityPet,
-          sold: newQuantityPet === 0,
-        });
-      }
-    }
-
-    if (!newOrder) {
-      throw new Error("Failed to create order");
-    }
-
-    return newOrder;
-  } catch (error) {
-    throw new Error(error.message);
+  if (!products || !address || !orderBy) {
+    throw new Error("Missing required fields");
   }
+
+  const { error: normErr, normalized } = normalizeOrderLineItems(products);
+  if (normErr) {
+    throw new Error(normErr);
+  }
+  const lineItems = normalized;
+
+  let totalPrice = await computeTotalFromLineItems(lineItems);
+
+  if (coupon) {
+    const user = await User.findById(orderBy).populate("Voucher.voucherID");
+    if (!user) {
+      throw new Error("User not found");
+    }
+    const userVouchers = (user.Voucher || []).map((v) =>
+      String(v.voucherID?._id || v.voucherID),
+    );
+    if (!userVouchers.includes(String(coupon))) {
+      throw new Error("Coupon not valid for this user");
+    }
+    const voucher = await Voucher.findById(coupon);
+    if (!voucher) {
+      throw new Error("Coupon not found");
+    }
+    totalPrice = Math.max(0, totalPrice - (totalPrice * voucher.discount) / 100);
+  }
+
+  const newOrder = await Order.create({
+    products: lineItems,
+    totalPrice,
+    paymentMethod,
+    coupon: coupon || null,
+    address,
+    receiverName: receiverName || "",
+    receiverPhone: receiverPhone || "",
+    Note: note || "",
+    OrderBy: orderBy,
+    status: "Processing",
+  });
+
+  await decrementInventoryFromLineItems(lineItems);
+
+  if (!newOrder) {
+    throw new Error("Failed to create order");
+  }
+
+  return newOrder;
 };
 
 const returnTotalPrice = async ({ products }) => {
@@ -190,55 +192,7 @@ const returnTotalPrice = async ({ products }) => {
   }
   const lineItems = normalized;
 
-  let totalPrice = 0;
-
-  for (let item of lineItems) {
-    let product = await Product.findById(item.id);
-    if (product) {
-      const stockProd = Number(product.quantity);
-      if (
-        !Number.isFinite(stockProd) ||
-        stockProd < 1 ||
-        product.sold === true
-      ) {
-        throw new Error(`Product ${product.nameProduct} is out of stock`);
-      }
-      if (item.count > stockProd) {
-        throw new Error(
-          `Product ${product.nameProduct} has only ${stockProd} items in stock`
-        );
-      }
-
-      const unitPrice = Number(product.price);
-      totalPrice +=
-        (Number.isFinite(unitPrice) ? unitPrice : 0) * item.count;
-    } else {
-      let pet = await Pet.findById(item.id);
-      if (pet) {
-        const stockPet = Number(pet.quantity);
-        if (
-          !Number.isFinite(stockPet) ||
-          stockPet < 1 ||
-          pet.sold === true
-        ) {
-          throw new Error(`Pet ${pet.namePet} is out of stock`);
-        }
-        if (item.count > stockPet) {
-          throw new Error(
-            `Pet ${pet.namePet} has only ${stockPet} items in stock`
-          );
-        }
-
-        const petPrice = Number(pet.price);
-        totalPrice += (Number.isFinite(petPrice) ? petPrice : 0) * item.count;
-      } else {
-        throw new Error(
-          `Item with ID ${item.id} not found in products or pets`
-        );
-      }
-    }
-  }
-  return totalPrice;
+  return computeTotalFromLineItems(lineItems);
 };
 
 module.exports = {
