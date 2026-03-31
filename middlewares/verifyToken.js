@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
-const { isApiAllowedByRole } = require("../service/permissionService");
+const {
+  isApiAllowedByRole,
+  canAccessCustomerServiceWorkspace,
+} = require("../service/permissionService");
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 const verifyAccessToken = asyncHandler(async (req, res, next) => {
@@ -49,6 +52,14 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
     return next();
   }
   if (requestPath === "/api/permission/dashboard-access/me") {
+    return next();
+  }
+  const customerServiceAccess = await canAccessCustomerServiceWorkspace(
+    req.user?.role,
+    req.method,
+    requestPath,
+  );
+  if (customerServiceAccess) {
     return next();
   }
 

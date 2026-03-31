@@ -150,6 +150,41 @@ const isApiAllowedByRole = async (role, method, requestPath) => {
   return Boolean(matched.allowed);
 };
 
+const canAccessCustomerServiceWorkspace = async (role, method, requestPath) => {
+  const normalizedRole = normalizeRoleName(role);
+  if (!normalizedRole) return false;
+  if (normalizedRole === "Admin") return true;
+
+  const normalizedMethod = String(method || "").toUpperCase();
+  const normalizedPath = normalizePath(requestPath);
+  const allowedPatterns = [
+    "/api/chat/staff-conversations",
+    "/api/chat/my-chat",
+    "/api/chat/findone/:_id",
+    "/api/chat/conversation/:firstId/:secondId",
+    "/api/mess",
+    "/api/mess/:chatId",
+    "/api/booking",
+    "/api/booking/status/:id",
+  ];
+  const targetsCustomerService = allowedPatterns.some((pattern) =>
+    isPathMatch(pattern, normalizedPath),
+  );
+  if (!targetsCustomerService) return false;
+
+  const roleDoc = await RolePermission.findOne({ role: normalizedRole }).lean();
+  if (!roleDoc) return false;
+  const hasDashboardAccess = Boolean(roleDoc.dashboardAccess);
+  const menus = Array.isArray(roleDoc.dashboardMenus) ? roleDoc.dashboardMenus : [];
+  if (!hasDashboardAccess || !menus.includes("customer-service")) return false;
+
+  // Restrict methods for safety on workspace APIs
+  if (normalizedPath.startsWith("/api/booking/status/")) {
+    return normalizedMethod === "PUT";
+  }
+  return ["GET", "POST", "PUT", "PATCH"].includes(normalizedMethod);
+};
+
 module.exports = {
   DEFAULT_ROLES,
   normalizeRoleName,
@@ -158,5 +193,6 @@ module.exports = {
   ensureAllRolesPermissionDocs,
   syncRolePermissions,
   isApiAllowedByRole,
+  canAccessCustomerServiceWorkspace,
   ALL_DASHBOARD_MENUS,
 };
