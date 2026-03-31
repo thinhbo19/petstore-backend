@@ -178,7 +178,6 @@ const canAccessCustomerServiceWorkspace = async (role, method, requestPath) => {
   const menus = Array.isArray(roleDoc.dashboardMenus) ? roleDoc.dashboardMenus : [];
   if (!hasDashboardAccess || !menus.includes("customer-service")) return false;
 
-  // Restrict methods for safety on workspace APIs
   if (normalizedPath.startsWith("/api/booking/status/")) {
     return normalizedMethod === "PUT";
   }

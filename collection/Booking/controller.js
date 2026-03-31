@@ -57,7 +57,6 @@ async function assertBookingCapacityOrThrow(bookingDateRaw) {
     throw err;
   }
 
-  // dt is VN clock represented in UTC getters. Convert VN boundaries back to UTC.
   const y = dt.getUTCFullYear();
   const m = dt.getUTCMonth();
   const d = dt.getUTCDate();
@@ -99,7 +98,6 @@ const getBookingAvailabilityByMonth = asyncHandler(async (req, res) => {
     });
   }
 
-  // month from FE is VN month (YYYY-MM), query in UTC range
   const year = Number(month.format("YYYY"));
   const monthIndex = Number(month.format("MM")) - 1;
   const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0) - VN_OFFSET_MS);

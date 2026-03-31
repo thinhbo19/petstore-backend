@@ -25,7 +25,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Nhiều môi trường: thêm origin vào mảng hoặc đọc từ biến môi trường (ví dụ split CORS_ORIGINS bằng dấu phẩy).
 app.use(
   cors({
     origin: [

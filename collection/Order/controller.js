@@ -875,7 +875,6 @@ module.exports = {
   handlePaymentUrl,
   handleVnPayReturn,
   handleMoMoPay,
-  // Backward-compatible export name to avoid breaking old imports.
   hanldMoMoPay: handleMoMoPay,
   totalPriceOrder,
   mostPurchasedProduct,
