@@ -17,15 +17,17 @@ const {
   generateActivationEmail,
 } = require("../../service/emailTemplateService");
 
+const sameSitePolicy = process.env.NODE_ENV === "production" ? "none" : "lax";
+
 const refreshCookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
+  sameSite: sameSitePolicy,
   secure: process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 const csrfCookieOptions = {
   httpOnly: false,
-  sameSite: "lax",
+  sameSite: sameSitePolicy,
   secure: process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
