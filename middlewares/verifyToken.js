@@ -48,6 +48,9 @@ const verifyAccessToken = asyncHandler(async (req, res, next) => {
   if (req.user?.role === "Admin" && requestPath.startsWith("/api/permission")) {
     return next();
   }
+  if (requestPath === "/api/permission/dashboard-access/me") {
+    return next();
+  }
 
   const isAllowed = await isApiAllowedByRole(
     req.user?.role,

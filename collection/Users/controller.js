@@ -51,7 +51,7 @@ const buildUserData = (user) => ({
 const getRedirectUrlByRole = (role) => {
   if (role === "Admin") return "/dashboard";
   if (role === "User") return "/";
-  if (role === "Staff") return "/customer-service-by-staff";
+  if (role === "Staff") return "/dashboard";
   return "/";
 };
 

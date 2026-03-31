@@ -21,6 +21,14 @@ const rolePermissionSchema = new mongoose.Schema(
       type: [permissionItemSchema],
       default: [],
     },
+    dashboardAccess: {
+      type: Boolean,
+      default: false,
+    },
+    dashboardMenus: {
+      type: [String],
+      default: [],
+    },
     updatedBy: {
       type: mongoose.Types.ObjectId,
       ref: "User",

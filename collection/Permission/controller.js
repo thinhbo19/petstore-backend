@@ -3,6 +3,7 @@ const RolePermission = require("./model");
 const { getAllApiRoutes } = require("../../service/systemApiCollector");
 const {
   DEFAULT_ROLES,
+  ALL_DASHBOARD_MENUS,
   normalizeRoleName,
   isValidRoleName,
   normalizePath,
@@ -54,6 +55,13 @@ const getPermissionsByRole = asyncHandler(async (req, res) => {
     role,
     data: pagedPermissions,
     permissions: pagedPermissions,
+    dashboardAccess: Boolean(roleDoc?.dashboardAccess || role === "Admin"),
+    dashboardMenus:
+      Array.isArray(roleDoc?.dashboardMenus) && roleDoc?.dashboardMenus?.length
+        ? roleDoc.dashboardMenus
+        : role === "Admin"
+          ? ALL_DASHBOARD_MENUS
+          : [],
     pagination: {
       page,
       limit,
@@ -83,6 +91,8 @@ const createRolePermission = asyncHandler(async (req, res) => {
   await RolePermission.create({
     role,
     permissions: [],
+    dashboardAccess: role === "Admin",
+    dashboardMenus: role === "Admin" ? ALL_DASHBOARD_MENUS : [],
     updatedBy: req.user?._id,
   });
 
@@ -104,6 +114,13 @@ const updatePermissionsByRole = asyncHandler(async (req, res) => {
   }
 
   const inputPermissions = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+  const dashboardAccess =
+    typeof req.body?.dashboardAccess === "boolean" ? req.body.dashboardAccess : undefined;
+  const dashboardMenus = Array.isArray(req.body?.dashboardMenus)
+    ? req.body.dashboardMenus
+        .map((item) => String(item || "").trim())
+        .filter((item) => ALL_DASHBOARD_MENUS.includes(item))
+    : undefined;
   const sanitizedInput = inputPermissions
     .filter((item) => item && item.method && item.path)
     .map((item) => ({
@@ -128,11 +145,29 @@ const updatePermissionsByRole = asyncHandler(async (req, res) => {
     (item) => item.allowed,
   );
 
+  const existing = await RolePermission.findOne({ role }).lean();
+  const nextDashboardAccess =
+    typeof dashboardAccess === "boolean"
+      ? dashboardAccess
+      : role === "Admin"
+        ? true
+        : Boolean(existing?.dashboardAccess);
+  const nextDashboardMenus =
+    dashboardMenus != null
+      ? Array.from(new Set(dashboardMenus))
+      : Array.isArray(existing?.dashboardMenus)
+        ? existing.dashboardMenus
+        : role === "Admin"
+          ? ALL_DASHBOARD_MENUS
+          : [];
+
   const updated = await RolePermission.findOneAndUpdate(
     { role },
     {
       role,
       permissions: normalizedPermissions,
+      dashboardAccess: nextDashboardAccess,
+      dashboardMenus: nextDashboardMenus,
       updatedBy: req.user?._id,
     },
     { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -142,7 +177,38 @@ const updatePermissionsByRole = asyncHandler(async (req, res) => {
     success: true,
     role,
     permissions: updated.permissions || [],
+    dashboardAccess: Boolean(updated.dashboardAccess || role === "Admin"),
+    dashboardMenus: updated.dashboardMenus || [],
     message: "Cập nhật phân quyền thành công",
+  });
+});
+
+const getMyDashboardAccess = asyncHandler(async (req, res) => {
+  const role = normalizeRoleName(req.user?.role);
+  if (!role) {
+    return res.status(200).json({
+      success: true,
+      role: "",
+      dashboardAccess: false,
+      dashboardMenus: [],
+    });
+  }
+
+  if (role === "Admin") {
+    return res.status(200).json({
+      success: true,
+      role,
+      dashboardAccess: true,
+      dashboardMenus: ALL_DASHBOARD_MENUS,
+    });
+  }
+
+  const roleDoc = await RolePermission.findOne({ role }).lean();
+  return res.status(200).json({
+    success: true,
+    role,
+    dashboardAccess: Boolean(roleDoc?.dashboardAccess),
+    dashboardMenus: Array.isArray(roleDoc?.dashboardMenus) ? roleDoc.dashboardMenus : [],
   });
 });
 
@@ -183,4 +249,5 @@ module.exports = {
   getPermissionsByRole,
   updatePermissionsByRole,
   deleteRolePermission,
+  getMyDashboardAccess,
 };

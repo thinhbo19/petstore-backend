@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const {
+  getMyDashboardAccess,
   getRoles,
   createRolePermission,
   getPermissionsByRole,
@@ -8,6 +9,7 @@ const {
 } = require("./controller");
 const { verifyAccessToken, isStrictAdmin } = require("../../middlewares/verifyToken");
 
+router.get("/dashboard-access/me", [verifyAccessToken], getMyDashboardAccess);
 router.get("/roles", [verifyAccessToken, isStrictAdmin], getRoles);
 router.post("/roles", [verifyAccessToken, isStrictAdmin], createRolePermission);
 router.get("/:role", [verifyAccessToken, isStrictAdmin], getPermissionsByRole);

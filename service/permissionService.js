@@ -1,6 +1,23 @@
 const RolePermission = require("../collection/Permission/model");
 
 const DEFAULT_ROLES = ["Admin", "User", "Staff"];
+const ALL_DASHBOARD_MENUS = [
+  "dashboard",
+  "products-dogs",
+  "products-cats",
+  "products-accessories",
+  "services-grooming",
+  "users",
+  "permissions-api",
+  "permissions-roles",
+  "permissions-menu",
+  "vouchers",
+  "orders",
+  "audit",
+  "news",
+  "settings",
+  "customer-service",
+];
 const ROLE_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_-]{1,29}$/;
 
 const normalizePath = (path = "") => {
@@ -83,7 +100,18 @@ const syncRolePermissions = async (role, apiRoutes) => {
 
   const saved = await RolePermission.findOneAndUpdate(
     { role },
-    { role, permissions: nextPermissions },
+    {
+      role,
+      permissions: nextPermissions,
+      dashboardAccess:
+        roleDoc?.dashboardAccess != null ? roleDoc.dashboardAccess : role === "Admin",
+      dashboardMenus:
+        Array.isArray(roleDoc?.dashboardMenus) && roleDoc.dashboardMenus.length
+          ? roleDoc.dashboardMenus
+          : role === "Admin"
+            ? ALL_DASHBOARD_MENUS
+            : [],
+    },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 
@@ -130,4 +158,5 @@ module.exports = {
   ensureAllRolesPermissionDocs,
   syncRolePermissions,
   isApiAllowedByRole,
+  ALL_DASHBOARD_MENUS,
 };
