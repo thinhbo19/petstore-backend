@@ -10,6 +10,135 @@ const { createBookingOrderService } = require("../../service/bookingService");
 const PaymentSession = require("../PaymentSession/model");
 require("dotenv").config();
 
+const MAX_BOOKINGS_PER_DAY = 30;
+const MAX_BOOKINGS_PER_SLOT = 3;
+const SLOT_TIMES = [
+  "09:00",
+  "10:00",
+  "11:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+];
+
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+const pad2 = (n) => String(n).padStart(2, "0");
+const toVnDate = (date) => new Date(new Date(date).getTime() + VN_OFFSET_MS);
+const vnDayKey = (date) => {
+  const d = toVnDate(date);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+};
+const vnTimeKey = (date) => {
+  const d = toVnDate(date);
+  return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+};
+const parseMonth = (month) => {
+  if (!month || typeof month !== "string") return null;
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const m = moment(`${month}-01`, "YYYY-MM-DD", true);
+  return m.isValid() ? m : null;
+};
+
+async function assertBookingCapacityOrThrow(bookingDateRaw) {
+  const raw = new Date(bookingDateRaw);
+  if (Number.isNaN(raw.getTime())) {
+    const err = new Error("Invalid bookingDate");
+    err.statusCode = 400;
+    throw err;
+  }
+  const dt = toVnDate(raw);
+
+  const timeKey = `${pad2(dt.getUTCHours())}:${pad2(dt.getUTCMinutes())}`;
+  if (!SLOT_TIMES.includes(timeKey)) {
+    const err = new Error("Invalid time slot");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // dt is VN clock represented in UTC getters. Convert VN boundaries back to UTC.
+  const y = dt.getUTCFullYear();
+  const m = dt.getUTCMonth();
+  const d = dt.getUTCDate();
+  const hh = dt.getUTCHours();
+  const mm = dt.getUTCMinutes();
+
+  const startOfDay = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - VN_OFFSET_MS);
+  const endOfDay = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - VN_OFFSET_MS);
+  const slotStart = new Date(Date.UTC(y, m, d, hh, mm, 0, 0) - VN_OFFSET_MS);
+  const slotEnd = new Date(Date.UTC(y, m, d, hh, mm, 59, 999) - VN_OFFSET_MS);
+
+  const dayCount = await Booking.countDocuments({
+    bookingDate: { $gte: startOfDay, $lte: endOfDay },
+    status: { $ne: "Cancelled" },
+  });
+  if (dayCount >= MAX_BOOKINGS_PER_DAY) {
+    const err = new Error("Day fully booked");
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const slotCount = await Booking.countDocuments({
+    bookingDate: { $gte: slotStart, $lte: slotEnd },
+    status: { $ne: "Cancelled" },
+  });
+  if (slotCount >= MAX_BOOKINGS_PER_SLOT) {
+    const err = new Error("Time slot fully booked");
+    err.statusCode = 409;
+    throw err;
+  }
+}
+
+const getBookingAvailabilityByMonth = asyncHandler(async (req, res) => {
+  const month = parseMonth(req.query?.month);
+  if (!month) {
+    return res.status(400).json({
+      success: false,
+      message: "month is required in YYYY-MM",
+    });
+  }
+
+  // month from FE is VN month (YYYY-MM), query in UTC range
+  const year = Number(month.format("YYYY"));
+  const monthIndex = Number(month.format("MM")) - 1;
+  const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0, 0) - VN_OFFSET_MS);
+  const end = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0) - VN_OFFSET_MS - 1);
+
+  const list = await Booking.find({
+    bookingDate: { $gte: start, $lte: end },
+    status: { $ne: "Cancelled" },
+  })
+    .select("bookingDate status")
+    .lean();
+
+  const byDay = {};
+  for (const b of list) {
+    const dayKey = vnDayKey(b.bookingDate);
+    const timeKey = vnTimeKey(b.bookingDate);
+    if (!byDay[dayKey]) {
+      byDay[dayKey] = { dayCount: 0, slots: {} };
+    }
+    byDay[dayKey].dayCount += 1;
+    if (SLOT_TIMES.includes(timeKey)) {
+      byDay[dayKey].slots[timeKey] = (byDay[dayKey].slots[timeKey] || 0) + 1;
+    }
+  }
+
+  for (const dayKey of Object.keys(byDay)) {
+    for (const t of SLOT_TIMES) {
+      if (byDay[dayKey].slots[t] == null) byDay[dayKey].slots[t] = 0;
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    slots: SLOT_TIMES,
+    limits: { perDay: MAX_BOOKINGS_PER_DAY, perSlot: MAX_BOOKINGS_PER_SLOT },
+    days: byDay,
+  });
+});
+
 function sortObject(obj) {
   let sorted = {};
   let str = [];
@@ -69,6 +198,16 @@ const createBooking = asyncHandler(async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to create booking for another user",
+      });
+    }
+
+    try {
+      await assertBookingCapacityOrThrow(bookingDate);
+    } catch (e) {
+      const code = Number(e?.statusCode) || 400;
+      return res.status(code).json({
+        success: false,
+        message: e?.message || "Booking capacity exceeded",
       });
     }
 
@@ -396,9 +535,17 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         return res.redirect(session.redirectTo);
       }
 
-      const message = await createBookingOrderService({
-        ...session.payload,
-      });
+      try {
+        await assertBookingCapacityOrThrow(session?.payload?.bookingDate);
+      } catch (e) {
+        session.status = "failed";
+        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=slot_full`;
+        session.consumedAt = new Date();
+        await session.save();
+        return res.redirect(session.redirectTo);
+      }
+
+      const message = await createBookingOrderService({ ...session.payload });
 
       if (message) {
         session.status = "success";
@@ -592,6 +739,7 @@ const topUsersByBooking = asyncHandler(async (req, res) => {
 
 module.exports = {
   createBooking,
+  getBookingAvailabilityByMonth,
   getBookingById,
   getAllBookings,
   getUserBooking,

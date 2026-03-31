@@ -29,6 +29,7 @@ router.get(
   [verifyAccessToken, isStrictAdmin],
   BookingControll.topUsersByBooking
 );
+router.get("/availability", BookingControll.getBookingAvailabilityByMonth);
 router.get("/:id", [verifyAccessToken], BookingControll.getBookingById);
 router.get(
   "/user/:userID",
