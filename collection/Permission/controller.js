@@ -8,12 +8,7 @@ const {
   isValidRoleName,
   normalizePath,
 } = require("../../service/permissionService");
-const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const getPagination = (query = {}) => {
-  const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
-  return { page, limit, skip: (page - 1) * limit };
-};
+const { escapeRegex, getPagination } = require("../../utils/queryHelpers");
 
 const getRoles = asyncHandler(async (_req, res) => {
   const dbRoles = await RolePermission.distinct("role");

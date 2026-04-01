@@ -1,29 +1,12 @@
 const News = require("./model");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
-const escapeRegex = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const getPagination = (query = {}) => {
-  const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.min(1000, Math.max(1, Number(query.limit) || 1000));
-  return { page, limit, skip: (page - 1) * limit };
-};
-const getSort = (query = {}, allowed = [], fallback = "createdAt") => {
-  const raw = String(query.sort || "").trim();
-  if (!raw) return { [fallback]: -1 };
-  const dir = raw.startsWith("-") ? -1 : 1;
-  const field = raw.replace(/^-/, "");
-  if (!allowed.includes(field)) return { [fallback]: -1 };
-  return { [field]: dir };
-};
-const getFields = (query = {}, allowed = []) => {
-  const raw = String(query.fields || "").trim();
-  if (!raw) return "";
-  const picked = raw
-    .split(",")
-    .map((x) => x.trim())
-    .filter((x) => x && allowed.includes(x));
-  return picked.join(" ");
-};
+const {
+  escapeRegex,
+  getPagination,
+  getSort,
+  getFields,
+} = require("../../utils/queryHelpers");
 
 const createNews = asyncHandler(async (req, res) => {
   try {
@@ -54,7 +37,11 @@ const getAllNews = asyncHandler(async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const { page, limit, skip } = getPagination(req.query);
-    const sort = getSort(req.query, ["title", "createdAt", "updatedAt"], "createdAt");
+    const sort = getSort(
+      req.query,
+      ["title", "createdAt", "updatedAt"],
+      { createdAt: -1 },
+    );
     const select = getFields(req.query, [
       "_id",
       "title",
@@ -139,9 +126,6 @@ const getCurrentNewsByName = asyncHandler(async (req, res) => {
     const { nName } = req.params;
 
     const allNews = await News.find().select("-__v");
-
-    allNews.forEach((article) => {
-    });
 
     const existing = allNews.find(
       (article) => slugify(article.title) === nName

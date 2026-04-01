@@ -123,6 +123,35 @@ async function decrementInventoryFromLineItems(lineItems) {
   }
 }
 
+async function applyCouponForUser({ orderBy, coupon, totalPrice }) {
+  if (!coupon) {
+    return { totalPrice, error: null, status: 200 };
+  }
+
+  const user = await User.findById(orderBy).populate("Voucher.voucherID");
+  if (!user) {
+    return { totalPrice, error: "User not found", status: 404 };
+  }
+
+  const userVouchers = (user.Voucher || []).map((v) =>
+    String(v.voucherID?._id || v.voucherID),
+  );
+  if (!userVouchers.includes(String(coupon))) {
+    return { totalPrice, error: "Coupon not valid for this user", status: 400 };
+  }
+
+  const voucher = await Voucher.findById(coupon);
+  if (!voucher) {
+    return { totalPrice, error: "Coupon not found", status: 404 };
+  }
+
+  const discountedPrice = Math.max(
+    0,
+    totalPrice - (totalPrice * voucher.discount) / 100,
+  );
+  return { totalPrice: discountedPrice, error: null, status: 200 };
+}
+
 const createOrderService = async ({
   products,
   paymentMethod,
@@ -146,21 +175,11 @@ const createOrderService = async ({
   let totalPrice = await computeTotalFromLineItems(lineItems);
 
   if (coupon) {
-    const user = await User.findById(orderBy).populate("Voucher.voucherID");
-    if (!user) {
-      throw new Error("User not found");
+    const couponResult = await applyCouponForUser({ orderBy, coupon, totalPrice });
+    if (couponResult.error) {
+      throw new Error(couponResult.error);
     }
-    const userVouchers = (user.Voucher || []).map((v) =>
-      String(v.voucherID?._id || v.voucherID),
-    );
-    if (!userVouchers.includes(String(coupon))) {
-      throw new Error("Coupon not valid for this user");
-    }
-    const voucher = await Voucher.findById(coupon);
-    if (!voucher) {
-      throw new Error("Coupon not found");
-    }
-    totalPrice = Math.max(0, totalPrice - (totalPrice * voucher.discount) / 100);
+    totalPrice = couponResult.totalPrice;
   }
 
   const newOrder = await Order.create({
@@ -199,4 +218,5 @@ module.exports = {
   createOrderService,
   returnTotalPrice,
   normalizeOrderLineItems,
+  applyCouponForUser,
 };

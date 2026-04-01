@@ -1,12 +1,18 @@
 const Booking = require("./model");
 const User = require("../Users/model");
 const TypeService = require("../TypeService/model");
-const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const moment = require("moment");
-const querystring = require("qs");
-const crypto = require("crypto");
 const { createBookingOrderService } = require("../../service/bookingService");
+const {
+  getClientIp,
+  buildVnPayPaymentUrl,
+  verifyVnPayReturnQuery,
+  buildCheckoutResultUrl,
+  getSessionNotFoundRedirectUrl,
+  failPaymentSessionAndBuildRedirect,
+  succeedPaymentSessionAndBuildRedirect,
+} = require("../../service/orderPaymentService");
 const PaymentSession = require("../PaymentSession/model");
 require("dotenv").config();
 
@@ -137,25 +143,6 @@ const getBookingAvailabilityByMonth = asyncHandler(async (req, res) => {
   });
 });
 
-function sortObject(obj) {
-  let sorted = {};
-  let str = [];
-  let key;
-  for (key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      str.push(encodeURIComponent(key));
-    }
-  }
-  str.sort();
-  for (key = 0; key < str.length; key++) {
-    sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
-  }
-  return sorted;
-}
-
-const buildTxnRef = () =>
-  `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
 const parseJsonField = (value, fallback) => {
   if (value == null || value === "") return fallback;
   if (Array.isArray(value)) return value;
@@ -168,6 +155,25 @@ const parseJsonField = (value, fallback) => {
   }
   return fallback;
 };
+
+const BOOKING_POPULATE = [
+  { path: "user", select: "username email mobile" },
+  { path: "services", select: "nameService type description price rating" },
+  { path: "voucher" },
+];
+
+const applyBookingPopulate = (query) => {
+  for (const populate of BOOKING_POPULATE) {
+    query.populate(populate);
+  }
+  return query;
+};
+const sendBookingServerError = (res, message, error, includeError = true) =>
+  res.status(500).json(
+    includeError
+      ? { success: false, message, error: error?.message }
+      : { success: false, message },
+  );
 
 const createBooking = asyncHandler(async (req, res) => {
   try {
@@ -226,25 +232,14 @@ const createBooking = asyncHandler(async (req, res) => {
       data: newBooking,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create booking",
-    });
+    return sendBookingServerError(res, "Failed to create booking", error, false);
   }
 });
 
 const getBookingById = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const booking = await Booking.findById(id)
-      .populate("user", "username email mobile")
-      .populate({
-        path: "services",
-        select: "nameService type description price rating",
-      })
-      .populate({
-        path: "voucher",
-      });
+    const booking = await applyBookingPopulate(Booking.findById(id));
 
     if (!booking) {
       return res.status(404).json({
@@ -269,36 +264,20 @@ const getBookingById = asyncHandler(async (req, res) => {
       data: booking,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch booking",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Failed to fetch booking", error);
   }
 });
 
 const getAllBookings = asyncHandler(async (req, res) => {
   try {
-    const bookings = await Booking.find()
-      .populate("user", "username email mobile")
-      .populate({
-        path: "services",
-        select: "nameService type description price rating",
-      })
-      .populate({
-        path: "voucher",
-      });
+    const bookings = await applyBookingPopulate(Booking.find());
 
     return res.status(200).json({
       success: true,
       data: bookings,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch bookings",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Failed to fetch bookings", error);
   }
 });
 
@@ -315,15 +294,8 @@ const getUserBooking = asyncHandler(async (req, res) => {
       });
     }
 
-    const orders = await Booking.find({ user: userID })
-      .populate("user", "username email mobile")
-      .populate({
-        path: "services",
-        select: "nameService type description price rating",
-      })
-      .exec();
-
-    if (!orders) {
+    const orders = await applyBookingPopulate(Booking.find({ user: userID })).exec();
+    if (!orders.length) {
       return res.status(404).json({
         success: false,
         message: "No order found",
@@ -335,11 +307,7 @@ const getUserBooking = asyncHandler(async (req, res) => {
       data: orders,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving orders",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Error retrieving orders", error);
   }
 });
 
@@ -367,11 +335,7 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
       data: updatedBooking,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update booking status",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Failed to update booking status", error);
   }
 });
 
@@ -393,11 +357,7 @@ const deleteBooking = asyncHandler(async (req, res) => {
       message: "Booking deleted successfully",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete booking",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Failed to delete booking", error);
   }
 });
 
@@ -423,56 +383,17 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
       });
     }
 
-    var ipAddr =
-      req.headers["x-forwarded-for"] ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
-      req.connection.socket.remoteAddress;
-
-    var tmnCode = process.env.VNP_TMNCODE;
-    var secretKey = process.env.VNP_HASHSECRET;
-    var vnpUrl = process.env.VNP_URL;
-    var returnUrl = process.env.VNP_RETURNURL_Booking;
-
-    var date = new Date();
-
-    var createDate = moment(date).format("YYYYMMDDHHmmss");
-    const amount = totalPrice;
-    var bankCode = req.body.bankCode || "";
-    let vnp_TxnRef = buildTxnRef();
-
-    const locale = req.body.language || "vn";
-
-    var currCode = "VND";
-    var vnp_Params = {};
-    vnp_Params["vnp_Version"] = "2.1.0";
-    vnp_Params["vnp_Command"] = "pay";
-    vnp_Params["vnp_TmnCode"] = tmnCode;
-    vnp_Params["vnp_Locale"] = locale;
-    vnp_Params["vnp_CurrCode"] = currCode;
-    vnp_Params["vnp_TxnRef"] = vnp_TxnRef;
-    vnp_Params["vnp_OrderInfo"] = "Thanh toan cho ma GD:" + vnp_TxnRef;
-    vnp_Params["vnp_OrderType"] = "other";
-    vnp_Params["vnp_Amount"] = amount * 100;
-    vnp_Params["vnp_ReturnUrl"] = returnUrl;
-    vnp_Params["vnp_IpAddr"] = ipAddr;
-    vnp_Params["vnp_CreateDate"] = createDate;
-    if (bankCode !== null && bankCode !== "") {
-      vnp_Params["vnp_BankCode"] = bankCode;
-    }
-
-    const sortedParams = sortObject(vnp_Params);
-
-    const signData = querystring.stringify(sortedParams, { encode: false });
-    const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-    sortedParams["vnp_SecureHash"] = signed;
-
-    const paymentUrl =
-      vnpUrl + "?" + querystring.stringify(sortedParams, { encode: false });
+    const ipAddr = getClientIp(req);
+    const { txnRef, paymentUrl } = buildVnPayPaymentUrl({
+      amount: totalPrice,
+      bankCode: req.body.bankCode || "",
+      locale: req.body.language || "vn",
+      ipAddr,
+      returnUrl: process.env.VNP_RETURNURL_Booking,
+    });
 
     await PaymentSession.create({
-      txnRef: vnp_TxnRef,
+      txnRef,
       kind: "booking",
       payload: {
         user,
@@ -489,36 +410,17 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
 
     return res.status(200).json({ success: true, paymentUrl });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Error", error);
   }
 });
 const handleVnPayReturn = asyncHandler(async (req, res) => {
   try {
-    let vnp_Params = req.query;
-    let secureHash = vnp_Params["vnp_SecureHash"];
-
-    delete vnp_Params["vnp_SecureHash"];
-    delete vnp_Params["vnp_SecureHashType"];
-
-    vnp_Params = sortObject(vnp_Params);
-    const secretKey = process.env.VNP_HASHSECRET;
-    const signData = querystring.stringify(vnp_Params, { encode: false });
-    const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-
-    if (secureHash === signed) {
-      const txnRef = vnp_Params["vnp_TxnRef"];
-      const responseCode = String(req.query?.vnp_ResponseCode || "");
+    const { isValid, txnRef, responseCode } = verifyVnPayReturnQuery(req.query);
+    if (isValid) {
       const session = await PaymentSession.findOne({ txnRef, kind: "booking" });
 
       if (!session) {
-        return res.redirect(
-          `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=session_not_found`,
-        );
+        return res.redirect(getSessionNotFoundRedirectUrl("booking"));
       }
 
       if (session.status === "success" && session.redirectTo) {
@@ -526,35 +428,43 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
       }
 
       if (responseCode !== "00") {
-        session.status = "failed";
-        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=payment_declined`;
-        session.consumedAt = new Date();
-        await session.save();
-        return res.redirect(session.redirectTo);
+        const redirectTo = await failPaymentSessionAndBuildRedirect({
+          session,
+          kind: "booking",
+          reason: "payment_declined",
+        });
+        return res.redirect(redirectTo);
       }
 
       try {
         await assertBookingCapacityOrThrow(session?.payload?.bookingDate);
       } catch (e) {
-        session.status = "failed";
-        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=slot_full`;
-        session.consumedAt = new Date();
-        await session.save();
-        return res.redirect(session.redirectTo);
+        const redirectTo = await failPaymentSessionAndBuildRedirect({
+          session,
+          kind: "booking",
+          reason: "slot_full",
+        });
+        return res.redirect(redirectTo);
       }
 
       const message = await createBookingOrderService({ ...session.payload });
 
       if (message) {
-        session.status = "success";
-        session.consumedAt = new Date();
-        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=success&bookingId=${message._id}`;
-        await session.save();
-        return res.redirect(session.redirectTo);
+        const redirectTo = await succeedPaymentSessionAndBuildRedirect({
+          session,
+          kind: "booking",
+          idKey: "bookingId",
+          idValue: message._id,
+        });
+        return res.redirect(redirectTo);
       }
 
       return res.redirect(
-        `${process.env.URL_CLIENT}/checkout/result?kind=booking&status=failed&reason=create_booking_failed`,
+        buildCheckoutResultUrl({
+          kind: "booking",
+          status: "failed",
+          reason: "create_booking_failed",
+        }),
       );
     } else {
       return res
@@ -562,11 +472,7 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         .json({ success: false, message: "Invalid signature" });
     }
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Server error", error);
   }
 });
 
@@ -591,11 +497,11 @@ const totalPriceBooking = asyncHandler(async (req, res) => {
       totalPrice,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error calculating total price for all bookings",
-      error: error.message,
-    });
+    return sendBookingServerError(
+      res,
+      "Error calculating total price for all bookings",
+      error,
+    );
   }
 });
 
@@ -620,19 +526,22 @@ const mostPurchasedService = asyncHandler(async (req, res) => {
       });
     }
 
-    const servicesDetails = await Promise.all(
-      servicesAggregation.map(async (service) => {
-        const details = await TypeService.findById(service._id);
-        console.log(details);
-
-        return {
-          id: service._id,
-          name: details.nameService,
-          totalPurchased: service.totalPurchased,
-          description: details.description,
-        };
-      })
+    const serviceIds = servicesAggregation.map((service) => service._id);
+    const serviceDocuments = await TypeService.find({
+      _id: { $in: serviceIds },
+    }).select("nameService description");
+    const serviceById = new Map(
+      serviceDocuments.map((service) => [String(service._id), service]),
     );
+    const servicesDetails = servicesAggregation.map((service) => {
+      const details = serviceById.get(String(service._id));
+      return {
+        id: service._id,
+        name: details?.nameService || "Unknown",
+        totalPurchased: service.totalPurchased,
+        description: details?.description || "",
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -640,11 +549,7 @@ const mostPurchasedService = asyncHandler(async (req, res) => {
       services: servicesDetails,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching most purchased services",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Error fetching most purchased services", error);
   }
 });
 
@@ -687,11 +592,11 @@ const totalSalesByMonthBooking = asyncHandler(async (req, res) => {
       data: monthlySales,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching total sales by month for bookings",
-      error: error.message,
-    });
+    return sendBookingServerError(
+      res,
+      "Error fetching total sales by month for bookings",
+      error,
+    );
   }
 });
 const topUsersByBooking = asyncHandler(async (req, res) => {
@@ -707,19 +612,20 @@ const topUsersByBooking = asyncHandler(async (req, res) => {
       { $limit: 5 },
     ]);
 
-    const topUsers = await Promise.all(
-      usersAggregation.map(async (user) => {
-        const userDetails = await User.findById(user._id).select(
-          "username Avatar"
-        );
-        return {
-          userId: user._id,
-          name: userDetails?.username || "Unknown",
-          Avatar: userDetails?.Avatar || "Unknown",
-          orderCount: user.orderCount,
-        };
-      })
+    const userIds = usersAggregation.map((user) => user._id).filter(Boolean);
+    const userDetails = await User.find({ _id: { $in: userIds } }).select(
+      "username Avatar",
     );
+    const userById = new Map(userDetails.map((user) => [String(user._id), user]));
+    const topUsers = usersAggregation.map((user) => {
+      const detail = userById.get(String(user._id));
+      return {
+        userId: user._id,
+        name: detail?.username || "Unknown",
+        Avatar: detail?.Avatar || "Unknown",
+        orderCount: user.orderCount,
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -727,11 +633,7 @@ const topUsersByBooking = asyncHandler(async (req, res) => {
       data: topUsers,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching top users",
-      error: error.message,
-    });
+    return sendBookingServerError(res, "Error fetching top users", error);
   }
 });
 

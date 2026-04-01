@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
-const User = require("../Users/model");
+const petRatingService = require("../../service/petRatingService");
 
 const formatString = (input) => {
   const words = input.split("-");
@@ -101,6 +101,47 @@ const setCachedAdminSearch = (key, value) => {
     expireAt: Date.now() + ADMIN_SEARCH_CACHE_TTL_MS,
   });
 };
+const buildSpeciesFilter = (specie, q) => {
+  const formattedSpecie = formatString(specie);
+  const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
+  if (!q) return baseFilter;
+  const regex = new RegExp(escapeRegex(q), "i");
+  return {
+    ...baseFilter,
+    $or: [
+      { namePet: regex },
+      { "petBreed.nameBreed": regex },
+      { description: regex },
+      { characteristic: regex },
+    ],
+  };
+};
+const toSafeQuantity = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.floor(parsed));
+};
+const SORT_QUERY_TO_OPTION = {
+  "a-z": { namePet: 1 },
+  "z-a": { namePet: -1 },
+  latest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+  "price-low-to-high": { price: 1 },
+  "price-high-to-low": { price: -1 },
+};
+const getPetSortOption = (sortKey) => SORT_QUERY_TO_OPTION[sortKey] || {};
+const parsePriceRange = ({ minPrice, maxPrice }) => {
+  if (minPrice && isNaN(minPrice)) {
+    return { error: "Invalid min price", range: null };
+  }
+  if (maxPrice && isNaN(maxPrice)) {
+    return { error: "Invalid max price", range: null };
+  }
+  const range = {};
+  if (minPrice) range.$gte = parseFloat(minPrice);
+  if (maxPrice) range.$lte = parseFloat(maxPrice);
+  return { error: null, range };
+};
 
 const PET_SELECT_FIELDS = [
   "_id",
@@ -175,20 +216,7 @@ const searchPetsForAdmin = asyncHandler(async (req, res) => {
     const cached = getCachedAdminSearch(cacheKey);
     if (cached) return res.status(200).json(cached);
 
-    const formattedSpecie = formatString(specie);
-    const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
-    const regex = q ? new RegExp(escapeRegex(q), "i") : null;
-    const filter = q
-      ? {
-          ...baseFilter,
-          $or: [
-            { namePet: regex },
-            { "petBreed.nameBreed": regex },
-            { description: regex },
-            { characteristic: regex },
-          ],
-        }
-      : baseFilter;
+    const filter = buildSpeciesFilter(specie, q);
 
     const [pets, total] = await Promise.all([
       Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
@@ -284,10 +312,9 @@ const changePets = asyncHandler(async (req, res) => {
 
     const qtyProvided =
       quantity !== undefined && quantity !== null && quantity !== "";
-    const parsedQty = qtyProvided ? Number(quantity) : Number(pet.quantity);
-    const safeQty = Number.isFinite(parsedQty)
-      ? Math.max(0, Math.floor(parsedQty))
-      : 0;
+    const safeQty = qtyProvided
+      ? toSafeQuantity(quantity, 0)
+      : toSafeQuantity(pet.quantity, 0);
 
     const updatePets = await Pets.findByIdAndUpdate(
       pid,
@@ -371,37 +398,8 @@ const getPetBySpecies = asyncHandler(async (req, res) => {
   try {
     const { page, limit, skip } = getPagination(req.query);
     const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
-    const select = getFields(req.query, [
-      "_id",
-      "namePet",
-      "imgPet",
-      "petBreed",
-      "age",
-      "gender",
-      "description",
-      "price",
-      "quantity",
-      "deworming",
-      "vaccination",
-      "characteristic",
-      "sold",
-      "createdAt",
-      "updatedAt",
-    ]);
-    const formattedSpecie = formatString(specie);
-    const baseFilter = { "petBreed.nameSpecies": formattedSpecie };
-    const regex = q ? new RegExp(escapeRegex(q), "i") : null;
-    const filter = q
-      ? {
-          ...baseFilter,
-          $or: [
-            { namePet: regex },
-            { "petBreed.nameBreed": regex },
-            { description: regex },
-            { characteristic: regex },
-          ],
-        }
-      : baseFilter;
+    const select = getFields(req.query, PET_SELECT_FIELDS);
+    const filter = buildSpeciesFilter(specie, q);
 
     const [pets, total] = await Promise.all([
       Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
@@ -457,39 +455,17 @@ const getPetByBreed = asyncHandler(async (req, res) => {
 const sortingPet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { sort } = req.query;
-  let sortOption = {};
-
-  switch (sort) {
-    case "a-z":
-      sortOption = { namePet: 1 }; // Sort by letter: A to Z
-      break;
-    case "z-a":
-      sortOption = { namePet: -1 }; // Sort by letter: Z to A
-      break;
-    case "latest":
-      sortOption = { createdAt: -1 }; // Sort by latest
-      break;
-    case "oldest":
-      sortOption = { createdAt: 1 }; // Sort by oldest
-      break;
-    case "price-low-to-high":
-      sortOption = { price: 1 }; // Sort by price: Low to High
-      break;
-    case "price-high-to-low":
-      sortOption = { price: -1 }; // Sort by price: High to Low
-      break;
-    default:
-      sortOption = {}; // No sorting
-  }
+  const sortOption = getPetSortOption(sort);
 
   try {
+    const formattedBreed = formatString(breed);
     const pets = await Pets.find({
-      "petBreed.nameBreed": breed,
+      "petBreed.nameBreed": formattedBreed,
     }).sort(sortOption);
     if (pets.length === 0) {
       return res
         .status(404)
-        .json({ message: `No pets found for breed: ${breed}` });
+        .json({ message: `No pets found for breed: ${formattedBreed}` });
     }
     return res.status(200).json(pets);
   } catch (error) {
@@ -499,23 +475,15 @@ const sortingPet = asyncHandler(async (req, res) => {
 const filterPricePet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { minPrice, maxPrice } = req.query;
-
-  let priceQuery = {};
-  if (minPrice && isNaN(minPrice)) {
-    return res.status(400).json({ message: "Invalid min price" });
-  }
-  if (maxPrice && isNaN(maxPrice)) {
-    return res.status(400).json({ message: "Invalid max price" });
-  }
-  if (minPrice) {
-    priceQuery.$gte = parseFloat(minPrice);
-  }
-  if (maxPrice) {
-    priceQuery.$lte = parseFloat(maxPrice);
-  }
+  const { error: priceError, range: priceQuery } = parsePriceRange({
+    minPrice,
+    maxPrice,
+  });
+  if (priceError) return res.status(400).json({ message: priceError });
   try {
+    const formattedBreed = formatString(breed);
     const pets = await Pets.find({
-      "petBreed.breedID": breed,
+      "petBreed.nameBreed": formattedBreed,
       price: priceQuery,
     });
 
@@ -535,63 +503,16 @@ const postRating = asyncHandler(async (req, res) => {
   try {
     const { star, comment } = req.body;
     const postBy = req.user?._id;
-
-    const newFiles = (req.files || []).map((file) => file.path);
-
     const { petId } = req.params;
-
-    const pet = await Pets.findById(petId);
-    const user = await User.findById(postBy);
-
-    if (!pet) {
-      throw new Error("Pet not found");
-    }
-    if (!user) {
-      throw new Error("user not found");
-    }
-    if (!postBy || !star || !comment) {
-      res.status(400);
-      throw new Error(
-        "Please provide complete information: postBy, star, comment."
-      );
-    }
-
-    if (star < 1 || star > 5) {
-      res.status(400);
-      throw new Error("The number of stars must be between 1 and 5.");
-    }
-
-    const existingRatingIndex = pet.rating.findIndex(
-      (r) => r.postBy.toString() === postBy
-    );
-    let feedback_img = newFiles;
-    if (existingRatingIndex !== -1 && newFiles.length === 0) {
-      const prev = pet.rating[existingRatingIndex].feedback_img || [];
-      feedback_img = Array.isArray(prev) ? [...prev] : [];
-    }
-    if (existingRatingIndex !== -1) {
-      pet.rating[existingRatingIndex] = {
-        postBy,
-        username: user.username,
-        avatar: user.Avatar,
-        star,
-        comment,
-        dateComment: Date.now(),
-        feedback_img,
-      };
-    } else {
-      pet.rating.push({
-        postBy,
-        username: user.username,
-        avatar: user.Avatar,
-        star,
-        comment,
-        dateComment: Date.now(),
-        feedback_img,
-      });
-    }
-    await pet.save();
-    if (existingRatingIndex !== -1) {
+    const newFiles = (req.files || []).map((file) => file.path);
+    const { action, pet } = await petRatingService.upsertPetRating({
+      petId,
+      postBy,
+      star,
+      comment,
+      newFiles,
+    });
+    if (action === "updated") {
       res.status(200).json({
         success: true,
         message: "Rating updated successfully.",
@@ -605,6 +526,18 @@ const postRating = asyncHandler(async (req, res) => {
       });
     }
   } catch (error) {
+    if (error.status === 400) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    if (error.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
     res.status(500).json({
       success: false,
       message: error.message || "Lỗi máy chủ",
@@ -616,36 +549,19 @@ const deleteRating = asyncHandler(async (req, res) => {
   try {
     const { petId } = req.params;
     const postBy = req.user?._id;
-
-    const pet = await Pets.findById(petId); // Tìm thú cưng theo ID
-
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: "Pet not found",
-      });
-    }
-
-    const existingRatingIndex = pet.rating.findIndex(
-      (r) => r.postBy.toString() === postBy
-    );
-
-    if (existingRatingIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: "Rating not found",
-      });
-    }
-
-    pet.rating.splice(existingRatingIndex, 1);
-    await pet.save();
-
+    const { pet } = await petRatingService.deletePetRating({ petId, postBy });
     return res.status(200).json({
       success: true,
       message: "Rating deleted successfully.",
       pet,
     });
   } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
     return res.status(500).json({
       success: false,
       message: error.message,

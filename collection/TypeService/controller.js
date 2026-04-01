@@ -1,7 +1,27 @@
 const User = require("../Users/model");
 const TypeService = require("./model");
-const { default: mongoose } = require("mongoose");
 const asyncHandler = require("express-async-handler");
+const listServicesByFilter = async (res, filter = {}) => {
+  try {
+    const services = await TypeService.find(filter);
+    if (!services.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No services found",
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      data: services,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving services",
+      error: error.message,
+    });
+  }
+};
 
 const createService = asyncHandler(async (req, res) => {
   const { nameService, type, description, price } = req.body;
@@ -95,72 +115,15 @@ const deleteService = asyncHandler(async (req, res) => {
 });
 
 const getAllServices = asyncHandler(async (req, res) => {
-  try {
-    const services = await TypeService.find();
-    if (!services || services.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No services found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: services,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving services",
-      error: error.message,
-    });
-  }
+  return listServicesByFilter(res);
 });
 
 const getAllSpaServices = asyncHandler(async (req, res) => {
-  try {
-    const services = await TypeService.find({ type: "Spa" });
-    if (!services || services.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No services found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: services,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving services",
-      error: error.message,
-    });
-  }
+  return listServicesByFilter(res, { type: "Spa" });
 });
 
 const getAllHotelServices = asyncHandler(async (req, res) => {
-  try {
-    const services = await TypeService.find({ type: "Hotel" });
-    if (!services || services.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No services found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: services,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving services",
-      error: error.message,
-    });
-  }
+  return listServicesByFilter(res, { type: "Hotel" });
 });
 
 const getServiceById = asyncHandler(async (req, res) => {

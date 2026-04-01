@@ -6,30 +6,70 @@ const sendMailOrder = require("../utils/sendMailOrderjs");
 
 async function adjustInventoryByLineItems(lineItems, direction) {
   const delta = direction === "increase" ? 1 : -1;
-  for (const item of lineItems) {
-    const product = await Product.findById(item.id);
-    const pet = product ? null : await Pet.findById(item.id);
+  const countById = new Map();
+  for (const item of lineItems || []) {
+    const id = String(item?.id || "");
+    if (!id) continue;
+    const count = Number(item?.count) || 0;
+    countById.set(id, (countById.get(id) || 0) + count);
+  }
+  if (!countById.size) return;
+
+  const ids = Array.from(countById.keys());
+  const products = await Product.find({ _id: { $in: ids } });
+  const productById = new Map(products.map((doc) => [String(doc._id), doc]));
+  const petIds = ids.filter((id) => !productById.has(id));
+  const pets = petIds.length ? await Pet.find({ _id: { $in: petIds } }) : [];
+  const petById = new Map(pets.map((doc) => [String(doc._id), doc]));
+
+  const productOps = [];
+  const petOps = [];
+
+  for (const [id, count] of countById.entries()) {
+    const product = productById.get(id);
+    const pet = product ? null : petById.get(id);
     if (product) {
       const stockProd = Number(product.quantity);
       if (!Number.isFinite(stockProd)) {
         throw new Error(`Invalid quantity in DB for product ${product.nameProduct}`);
       }
-      const newQuantityProd = stockProd + delta * item.count;
-      await Product.findByIdAndUpdate(item.id, {
-        quantity: newQuantityProd,
-        sold: newQuantityProd === 0,
+      const newQuantityProd = stockProd + delta * count;
+      productOps.push({
+        updateOne: {
+          filter: { _id: id },
+          update: {
+            $set: {
+              quantity: newQuantityProd,
+              sold: newQuantityProd === 0,
+            },
+          },
+        },
       });
     } else if (pet) {
       const stockPet = Number(pet.quantity);
       if (!Number.isFinite(stockPet)) {
         throw new Error(`Invalid quantity in DB for pet ${pet.namePet}`);
       }
-      const newQuantityPet = stockPet + delta * item.count;
-      await Pet.findByIdAndUpdate(item.id, {
-        quantity: newQuantityPet,
-        sold: newQuantityPet === 0,
+      const newQuantityPet = stockPet + delta * count;
+      petOps.push({
+        updateOne: {
+          filter: { _id: id },
+          update: {
+            $set: {
+              quantity: newQuantityPet,
+              sold: newQuantityPet === 0,
+            },
+          },
+        },
       });
     }
+  }
+
+  if (productOps.length) {
+    await Product.bulkWrite(productOps);
+  }
+  if (petOps.length) {
+    await Pet.bulkWrite(petOps);
   }
 }
 

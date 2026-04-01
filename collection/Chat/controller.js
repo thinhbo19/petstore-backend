@@ -282,17 +282,42 @@ const getStaffConversations = asyncHandler(async (req, res) => {
         customer._id.toString(),
         staffId,
       );
-      const lastMessage = await MessModel.findOne({ chatId: chat._id.toString() })
-        .sort({ createdAt: -1 })
-        .select("_id senderId text image createdAt");
-
       conversations.push({
         chatId: chat._id,
         customer,
         members: chat.members,
         updatedAt: chat.updatedAt,
-        lastMessage,
+        lastMessage: null,
       });
+    }
+
+    const chatIds = conversations.map((item) => item.chatId.toString());
+    if (chatIds.length) {
+      const lastMessages = await MessModel.aggregate([
+        { $match: { chatId: { $in: chatIds } } },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: "$chatId",
+            lastMessage: {
+              $first: {
+                _id: "$_id",
+                senderId: "$senderId",
+                text: "$text",
+                image: "$image",
+                createdAt: "$createdAt",
+              },
+            },
+          },
+        },
+      ]);
+      const lastMessageByChatId = new Map(
+        lastMessages.map((item) => [String(item._id), item.lastMessage]),
+      );
+      for (const conversation of conversations) {
+        conversation.lastMessage =
+          lastMessageByChatId.get(conversation.chatId.toString()) || null;
+      }
     }
 
     conversations.sort((a, b) => {

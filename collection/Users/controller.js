@@ -49,6 +49,23 @@ const buildUserData = (user) => ({
   date: user.date,
   assignedStaff: user.assignedStaff,
 });
+const PASSWORD_REGEX_ADMIN = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{3,}$/;
+const PASSWORD_REGEX_REGISTER = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+const buildOtpPayload = () => {
+  const otp = generateOTP();
+  const otpExpiry = new Date();
+  otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
+  return { code: otp, expiresAt: otpExpiry };
+};
+const sendActivationOtpEmail = async ({ email, username, otp, subject }) => {
+  const html = generateActivationEmail(username, otp);
+  await sendMail({
+    email,
+    subject,
+    html,
+    type: "activation",
+  });
+};
 
 const getRedirectUrlByRole = (role) => {
   if (role === "Admin") return "/dashboard";
@@ -116,6 +133,40 @@ const createAuditLog = async (req, action, targetUser, details = {}) => {
     console.error("Failed to write audit log:", error.message);
   }
 };
+const createHttpError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+const getUserByIdOrThrow = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) throw createHttpError(404, "User not found");
+  return user;
+};
+const parseAddressIndex = (value) => {
+  const idx = Number.parseInt(value, 10);
+  return Number.isInteger(idx) ? idx : -1;
+};
+const ensureAddressIndexOrThrow = (user, addressIndex) => {
+  const idx = parseAddressIndex(addressIndex);
+  if (idx < 0 || idx >= user.Address.length) {
+    throw createHttpError(400, "Invalid address index");
+  }
+  return idx;
+};
+const sendUserServerError = (
+  res,
+  message,
+  { includeSuccess = true, logLabel, error } = {},
+) => {
+  if (logLabel) {
+    console.error(`${logLabel}:`, error);
+  }
+  if (includeSuccess) {
+    return res.status(500).json({ success: false, message });
+  }
+  return res.status(500).json({ message });
+};
 
 const createAccount = asyncHandler(async (req, res) => {
   try {
@@ -126,8 +177,7 @@ const createAccount = asyncHandler(async (req, res) => {
         message: "Missing inputs",
       });
     }
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{3,}$/;
-    if (!passwordRegex.test(password)) {
+    if (!PASSWORD_REGEX_ADMIN.test(password)) {
       return res.status(400).json({
         success: false,
         message:
@@ -163,17 +213,11 @@ const createAccount = asyncHandler(async (req, res) => {
           message: "Create account successful!",
         });
       } else {
-        return res.status(500).json({
-          success: false,
-          message: "Something went wrong.",
-        });
+        return sendUserServerError(res, "Something went wrong.");
       }
     }
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    });
+    return sendUserServerError(res, "Something went wrong", { error });
   }
 });
 
@@ -190,8 +234,7 @@ const register = asyncHandler(async (req, res) => {
         message: "Missing inputs",
       });
     }
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
-    if (!passwordRegex.test(password)) {
+    if (!PASSWORD_REGEX_REGISTER.test(password)) {
       return res.status(400).json({
         success: false,
         message:
@@ -205,9 +248,7 @@ const register = asyncHandler(async (req, res) => {
         message: "User with this email already exists",
       });
     } else {
-      const otp = generateOTP();
-      const otpExpiry = new Date();
-      otpExpiry.setMinutes(otpExpiry.getMinutes() + 5); // OTP expires in 5 minutes
+      const otpPayload = buildOtpPayload();
 
       const assignedStaff = await getLeastBusyStaffId();
       const newUser = await User.create({
@@ -217,20 +258,15 @@ const register = asyncHandler(async (req, res) => {
         mobile: mobile,
         isBlocked: true,
         assignedStaff,
-        otp: {
-          code: otp,
-          expiresAt: otpExpiry,
-        },
+        otp: otpPayload,
       });
 
-      const html = generateActivationEmail(username, otp);
-      const data = {
-        email: email,
+      await sendActivationOtpEmail({
+        email,
+        username,
+        otp: otpPayload.code,
         subject: "Activate Your Account - OTP Verification",
-        html,
-        type: "activation",
-      };
-      await sendMail(data);
+      });
 
       if (newUser) {
         return res.status(200).json({
@@ -239,16 +275,12 @@ const register = asyncHandler(async (req, res) => {
             "Registration successful. Please check your email for OTP verification!",
         });
       } else {
-        return res.status(500).json({
-          success: false,
-          message: "Something went wrong during registration.",
-        });
+        return sendUserServerError(res, "Something went wrong during registration.");
       }
     }
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong during registration.",
+    return sendUserServerError(res, "Something went wrong during registration.", {
+      error,
     });
   }
 });
@@ -303,10 +335,7 @@ const activateAccount = asyncHandler(async (req, res) => {
       message: "Account activated successfully!",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error activating account.",
-    });
+    return sendUserServerError(res, "Error activating account.", { error });
   }
 });
 
@@ -337,34 +366,23 @@ const resendOTP = asyncHandler(async (req, res) => {
       });
     }
 
-    const otp = generateOTP();
-    const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
-
-    user.otp = {
-      code: otp,
-      expiresAt: otpExpiry,
-    };
+    const otpPayload = buildOtpPayload();
+    user.otp = otpPayload;
     await user.save();
 
-    const html = generateActivationEmail(user.username, otp);
-    const data = {
-      email: email,
+    await sendActivationOtpEmail({
+      email,
+      username: user.username,
+      otp: otpPayload.code,
       subject: "New OTP for Account Activation",
-      html,
-      type: "activation",
-    };
-    await sendMail(data);
+    });
 
     return res.status(200).json({
       success: true,
       message: "New OTP has been sent to your email",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error sending new OTP",
-    });
+    return sendUserServerError(res, "Error sending new OTP", { error });
   }
 });
 
@@ -386,29 +404,21 @@ const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email, isDeleted: { $ne: true } }).select(
-      "_id username Avatar email mobile role Address isBlocked date assignedStaff",
-    );
-
+    const user = await User.findOne({ email, isDeleted: { $ne: true } });
     if (!user) {
       return res.status(400).json({
         success: false,
         message: "User not found",
       });
     }
-    const userWithPassword = await User.findOne({
-      email,
-      isDeleted: { $ne: true },
-    });
-    if (userWithPassword.isBlocked) {
+    if (user.isBlocked) {
       return res.status(403).json({
         success: false,
         message: "Your account has been blocked.",
       });
     }
 
-    const isPasswordCorrect =
-      await userWithPassword.isCorrectPassword(password);
+    const isPasswordCorrect = await user.isCorrectPassword(password);
 
     if (!isPasswordCorrect) {
       return res.status(400).json({
@@ -439,10 +449,9 @@ const login = asyncHandler(async (req, res) => {
       url,
     });
   } catch (error) {
-    console.error("Error during login:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong during login.",
+    return sendUserServerError(res, "Something went wrong during login.", {
+      error,
+      logLabel: "Error during login",
     });
   }
 });
@@ -995,15 +1004,15 @@ const getFavorites = asyncHandler(async (req, res) => {
 const getCarts = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   try {
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const user = await getUserByIdOrThrow(_id);
     res.status(200).json({
       success: true,
       cart: user.cart,
     });
   } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ message: error.message });
+    }
     console.error("Error while fetching cart:", error);
     res.status(500).json({ message: "An error occurred while fetching cart" });
   }
@@ -1039,13 +1048,10 @@ const shoppingCart = asyncHandler(async (req, res) => {
   const { id, quantity } = req.body;
 
   try {
-    const user = await User.findById(_id);
+    const user = await getUserByIdOrThrow(_id);
     let images;
     let displayInfo;
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
     const desiredQuantity = Math.floor(Number(quantity));
     if (!desiredQuantity || desiredQuantity <= 0) {
       return res.status(400).json({ message: "Invalid quantity value" });
@@ -1135,6 +1141,9 @@ const shoppingCart = asyncHandler(async (req, res) => {
       maxAvailable,
     });
   } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ message: error.message });
+    }
     console.error("Error:", error);
     res.status(500).json({ message: "An error occurred" });
   }
@@ -1150,10 +1159,7 @@ const updateCartQuantity = asyncHandler(async (req, res) => {
         message: "Invalid quantity value",
       });
     }
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found", success: false });
-    }
+    const user = await getUserByIdOrThrow(_id);
     const existingID = user.cart.findIndex((item) => item.id.toString() === id);
     if (existingID === -1) {
       return res.status(404).json({
@@ -1188,7 +1194,10 @@ const updateCartQuantity = asyncHandler(async (req, res) => {
       },
     }); 
   } catch (error) {
-    return res.status(500).json({ success: false, message: "An error occurred" });
+    if (error.status === 404) {
+      return res.status(404).json({ message: error.message, success: false });
+    }
+    return sendUserServerError(res, "An error occurred", { error });
   }
 });
 const deleteOneCart = asyncHandler(async (req, res) => {
@@ -1202,10 +1211,7 @@ const deleteOneCart = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Missing cart item id" });
   }
 
-  const user = await User.findById(_id);
-  if (!user) {
-    return res.status(404).json({ success: false, message: "User not found" });
-  }
+  const user = await getUserByIdOrThrow(_id);
 
   const existingID = user.cart.findIndex((item) => String(item.id) === String(id));
   if (existingID === -1) {
@@ -1221,11 +1227,7 @@ const deleteAllCart = asyncHandler(async (req, res) => {
   const { _id } = req.user;
 
   try {
-    const user = await User.findById(_id);
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+    const user = await getUserByIdOrThrow(_id);
 
     user.cart = [];
 
@@ -1236,7 +1238,14 @@ const deleteAllCart = asyncHandler(async (req, res) => {
       message: "All items removed from your cart",
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "An error occurred while deleting all items in the cart" });
+    if (error.status === 404) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    return sendUserServerError(
+      res,
+      "An error occurred while deleting all items in the cart",
+      { error },
+    );
   }
 });
 
@@ -1244,17 +1253,19 @@ const addAddress = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { address } = req.body;
   try {
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" }); 
-    }
+    const user = await getUserByIdOrThrow(_id);
 
     user.Address.push({ address: address, settingDefault: false });
     await user.save();
 
     res.status(201).json({ success: true, message: "Address added successfully" });
   } catch (error) {
-    res.status(500).json({ success: false, message: "An error occurred while adding address" });
+    if (error.status === 404) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    return sendUserServerError(res, "An error occurred while adding address", {
+      error,
+    });
   }
 });
 const deleteAddress = async (req, res) => {
@@ -1262,21 +1273,20 @@ const deleteAddress = async (req, res) => {
   const addressIndex = req.params.addressIndex;
 
   try {
-    const user = await User.findById(_id);
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-    if (addressIndex < 0 || addressIndex >= user.Address.length) {
-      return res.status(400).json({ success: false, message: "Invalid address index" });
-    }
-    user.Address.splice(addressIndex, 1);
+    const user = await getUserByIdOrThrow(_id);
+    const idx = ensureAddressIndexOrThrow(user, addressIndex);
+    user.Address.splice(idx, 1);
 
     await user.save();
 
     return res.status(200).json({ success: true, message: "Address deleted successfully" });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "An error occurred while deleting address" });
+    if (error.status === 404 || error.status === 400) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    return sendUserServerError(res, "An error occurred while deleting address", {
+      error,
+    });
   }
 };
 const changeAddress = asyncHandler(async (req, res) => {
@@ -1285,23 +1295,9 @@ const changeAddress = asyncHandler(async (req, res) => {
   const { address } = req.body;
 
   try {
-    const user = await User.findById(_id);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (addressIndex < 0 || addressIndex >= user.Address.length) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid address index",
-      });
-    }
-
-    user.Address[addressIndex].address = address;
+    const user = await getUserByIdOrThrow(_id);
+    const idx = ensureAddressIndexOrThrow(user, addressIndex);
+    user.Address[idx].address = address;
     await user.save();
 
     return res.status(200).json({
@@ -1309,10 +1305,12 @@ const changeAddress = asyncHandler(async (req, res) => {
       message: "Address updated successfully",
     });
   } catch (error) {
-    console.error("Error updating address:", error);
-    return res.status(500).json({
-      success: false,
-      message: "An error occurred while updating address",
+    if (error.status === 404 || error.status === 400) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    return sendUserServerError(res, "An error occurred while updating address", {
+      error,
+      logLabel: "Error updating address",
     });
   }
 });
@@ -1321,18 +1319,22 @@ const changeDefaultAddress = asyncHandler(async (req, res) => {
   const { addressIndex } = req.params;
 
   try {
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const user = await getUserByIdOrThrow(_id);
+    const idx = ensureAddressIndexOrThrow(user, addressIndex);
     user.Address.forEach((address) => {
       address.settingDefault = false;
     });
-    user.Address[addressIndex].settingDefault = true;
+    user.Address[idx].settingDefault = true;
     await user.save();
     return res.status(200).json({ message: "Default address changed successfully" });
   } catch (error) {
-    return res.status(500).json({ message: "An error occurred while changing default address" });
+    if (error.status === 404 || error.status === 400) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return sendUserServerError(res, "An error occurred while changing default address", {
+      includeSuccess: false,
+      error,
+    });
   }
 });
 
@@ -1340,10 +1342,7 @@ const addVoucher = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
     const { voucherId } = req.body;
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const user = await getUserByIdOrThrow(_id);
     const existingVoucher = user.Voucher.find(
       (voucher) => voucher.voucherID.toString() === voucherId,
     );
@@ -1356,16 +1355,17 @@ const addVoucher = asyncHandler(async (req, res) => {
     await user.save();
     return res.status(200).json({ message: "Voucher added successfully!" });
   } catch (error) {
-    res.status(500).json({ message: "An error" });
+    if (error.status === 404) {
+      return res.status(404).json({ message: error.message });
+    }
+    return sendUserServerError(res, "An error", { includeSuccess: false, error });
   }
 });
 const getVouchers = asyncHandler(async (req, res) => {
   try {
     const { _id } = req.user;
     const user = await User.findById(_id).populate("Voucher.voucherID");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) throw createHttpError(404, "User not found");
 
     const currentDate = new Date();
 
@@ -1376,6 +1376,9 @@ const getVouchers = asyncHandler(async (req, res) => {
 
     return res.status(200).json({ vouchers: validVouchers });
   } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ message: error.message });
+    }
     console.error(error);
     return res
       .status(500)

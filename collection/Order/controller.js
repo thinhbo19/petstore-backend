@@ -1,10 +1,11 @@
 const Order = require("./model");
 const User = require("../Users/model");
-const Voucher = require("../Voucher/model");
 const PaymentSession = require("../PaymentSession/model");
 const orderService = require("../../service/orderService");
 const orderPaymentService = require("../../service/orderPaymentService");
 const orderFinalizeService = require("../../service/orderFinalizeService");
+const orderStatsService = require("../../service/orderStatsService");
+const orderReadService = require("../../service/orderReadService");
 const asyncHandler = require("express-async-handler");
 const crypto = require("crypto");
 const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
@@ -24,55 +25,22 @@ function sendServerError(res, error, message = "Server error") {
   });
 }
 
-function buildOrderPopulateQuery(query) {
-  return query
-    .populate("OrderBy", "username email mobile")
-    .populate({
-      path: "coupon",
-      model: "Voucher",
-      select: "nameVoucher",
-    });
+function sendStatsError(res, error, message) {
+  return sendServerError(res, error, message);
 }
-
-async function findOrderByIdWithRelations(orderID) {
-  return buildOrderPopulateQuery(Order.findById(orderID)).exec();
+function sendOrderReadError(res, error, message) {
+  return sendServerError(res, error, message);
 }
-
-async function findOrdersByUserWithRelations(userID) {
-  return buildOrderPopulateQuery(Order.find({ OrderBy: userID })).exec();
-}
-
-async function applyCouponDiscountForUser({ orderBy, coupon, totalPrice }) {
-  if (!coupon) return { totalPrice, error: null, status: 200 };
-
-  const userForCoupon = await User.findById(orderBy).populate("Voucher.voucherID");
-  const userVouchers = (userForCoupon?.Voucher || []).map((v) => v.voucherID);
-  const matchedUserVoucher = userVouchers.find((v) => v?._id?.equals(coupon));
-
-  if (!matchedUserVoucher) {
-    return {
-      totalPrice,
-      error: "Coupon not valid for this user",
-      status: 400,
-    };
+const findOwnedOrder = async (orderID, requesterId) => {
+  const order = await Order.findById(orderID);
+  if (!order) {
+    return { error: { status: 404, message: "No order found" }, order: null };
   }
-
-  const voucherDoc = await Voucher.findById(coupon);
-  if (!voucherDoc) {
-    return {
-      totalPrice,
-      error: "Coupon not found",
-      status: 404,
-    };
+  if (String(order.OrderBy) !== requesterId) {
+    return { error: { status: 403, message: "Forbidden" }, order: null };
   }
-
-  const discountAmount = (totalPrice * voucherDoc.discount) / 100;
-  return {
-    totalPrice: Math.max(0, totalPrice - discountAmount),
-    error: null,
-    status: 200,
-  };
-}
+  return { error: null, order };
+};
 
 const createOrder = asyncHandler(async (req, res) => {
   try {
@@ -121,7 +89,7 @@ const createOrder = asyncHandler(async (req, res) => {
       return res.status(status).json({ success: false, message });
     }
 
-    const couponResult = await applyCouponDiscountForUser({
+    const couponResult = await orderService.applyCouponForUser({
       orderBy,
       coupon,
       totalPrice,
@@ -184,9 +152,7 @@ const createOrder = asyncHandler(async (req, res) => {
 });
 const getAllOrders = asyncHandler(async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate("OrderBy", "username email mobile")
-      .exec();
+    const orders = await orderReadService.getAllOrdersWithUser();
 
     if (!orders) {
       return res.status(404).json({
@@ -200,11 +166,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
       data: orders,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving orders",
-      error: error.message,
-    });
+    return sendOrderReadError(res, error, "Error retrieving orders");
   }
 });
 const deleteOrder = asyncHandler(async (req, res) => {
@@ -236,7 +198,7 @@ const getOneOrder = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
 
   try {
-    const orders = await findOrderByIdWithRelations(orderID);
+    const orders = await orderReadService.getOrderByIdWithRelations(orderID);
 
     if (!orders) {
       return res.status(404).json({
@@ -251,11 +213,7 @@ const getOneOrder = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving orders",
-      error: error.message,
-    });
+    return sendOrderReadError(res, error, "Error retrieving orders");
   }
 });
 const getUserOrder = asyncHandler(async (req, res) => {
@@ -271,7 +229,7 @@ const getUserOrder = asyncHandler(async (req, res) => {
       });
     }
 
-    const orders = await findOrdersByUserWithRelations(userID);
+    const orders = await orderReadService.getOrdersByUserWithRelations(userID);
 
     if (!orders) {
       return res.status(404).json({
@@ -290,11 +248,7 @@ const getUserOrder = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving orders",
-      error: error.message,
-    });
+    return sendOrderReadError(res, error, "Error retrieving orders");
   }
 });
 const updateStatusOrder = asyncHandler(async (req, res) => {
@@ -316,18 +270,11 @@ const confirmOrderReceivedByUser = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
   const requesterId = String(req.user?._id || "");
 
-  const order = await Order.findById(orderID);
-  if (!order) {
-    return res.status(404).json({
+  const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
+  if (ownedErr) {
+    return res.status(ownedErr.status).json({
       success: false,
-      message: "No order found",
-    });
-  }
-
-  if (String(order.OrderBy) !== requesterId) {
-    return res.status(403).json({
-      success: false,
-      message: "Forbidden",
+      message: ownedErr.message,
     });
   }
 
@@ -353,18 +300,11 @@ const cancelOrderByUser = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
   const requesterId = String(req.user?._id || "");
 
-  const order = await Order.findById(orderID);
-  if (!order) {
-    return res.status(404).json({
+  const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
+  if (ownedErr) {
+    return res.status(ownedErr.status).json({
       success: false,
-      message: "No order found",
-    });
-  }
-
-  if (String(order.OrderBy) !== requesterId) {
-    return res.status(403).json({
-      success: false,
-      message: "Forbidden",
+      message: ownedErr.message,
     });
   }
 
@@ -394,7 +334,7 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
   const requesterRole = req.user?.role;
 
   try {
-    const order = await findOrderByIdWithRelations(orderID);
+    const order = await orderReadService.getOrderByIdWithRelations(orderID);
 
     if (!order) {
       return res.status(404).json({
@@ -421,11 +361,7 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving order",
-      error: error.message,
-    });
+    return sendOrderReadError(res, error, "Error retrieving order");
   }
 });
 
@@ -441,10 +377,9 @@ const requestAfterSalesByUser = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Reason is required" });
   }
 
-  const order = await Order.findById(orderID);
-  if (!order) return res.status(404).json({ success: false, message: "No order found" });
-  if (String(order.OrderBy) !== requesterId) {
-    return res.status(403).json({ success: false, message: "Forbidden" });
+  const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
+  if (ownedErr) {
+    return res.status(ownedErr.status).json({ success: false, message: ownedErr.message });
   }
   if (order.status !== "Success") {
     return res
@@ -567,9 +502,7 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
       const session = await PaymentSession.findOne({ txnRef, kind: "order" });
 
       if (!session) {
-        return res.redirect(
-          `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=session_not_found`,
-        );
+        return res.redirect(orderPaymentService.getSessionNotFoundRedirectUrl("order"));
       }
 
       if (session.status === "success" && session.redirectTo) {
@@ -577,11 +510,12 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
       }
 
       if (responseCode !== "00") {
-        session.status = "failed";
-        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=payment_declined`;
-        session.consumedAt = new Date();
-        await session.save();
-        return res.redirect(session.redirectTo);
+        const redirectTo = await orderPaymentService.failPaymentSessionAndBuildRedirect({
+          session,
+          kind: "order",
+          reason: "payment_declined",
+        });
+        return res.redirect(redirectTo);
       }
 
       const message = await orderService.createOrderService({
@@ -596,15 +530,21 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         });
         await orderFinalizeService.sendOrderConfirmationEmailSafe({ user, order: message });
 
-        session.status = "success";
-        session.consumedAt = new Date();
-        session.redirectTo = `${process.env.URL_CLIENT}/checkout/result?kind=order&status=success&orderId=${message._id}`;
-        await session.save();
-        return res.redirect(session.redirectTo);
+        const redirectTo = await orderPaymentService.succeedPaymentSessionAndBuildRedirect({
+          session,
+          kind: "order",
+          idKey: "orderId",
+          idValue: message._id,
+        });
+        return res.redirect(redirectTo);
       }
 
       return res.redirect(
-        `${process.env.URL_CLIENT}/checkout/result?kind=order&status=failed&reason=create_order_failed`,
+        orderPaymentService.buildCheckoutResultUrl({
+          kind: "order",
+          status: "failed",
+          reason: "create_order_failed",
+        }),
       );
     } else {
       return res
@@ -677,62 +617,32 @@ const handleMoMoPay = asyncHandler(async (req, res) => {
 });
 const totalPriceOrder = asyncHandler(async (req, res) => {
   try {
-    const orders = await Order.find();
-
-    if (!orders || orders.length === 0) {
+    const stats = await orderStatsService.calculateTotalPriceAllOrders();
+    if (!stats.found) {
       return res.status(404).json({
         success: false,
         message: "No orders found",
       });
     }
 
-    const totalPrice = orders.reduce((total, order) => {
-      return total + (order.totalPrice || 0);
-    }, 0);
-
     res.status(200).json({
       success: true,
       message: "Total price for all orders calculated successfully",
-      totalPrice,
+      totalPrice: stats.totalPrice,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error calculating total price for all orders",
-      error: error.message,
-    });
+    return sendStatsError(res, error, "Error calculating total price for all orders");
   }
 });
 const mostPurchasedProduct = asyncHandler(async (req, res) => {
   try {
-    const productsAggregation = await Order.aggregate([
-      { $unwind: "$products" },
-
-      {
-        $group: {
-          _id: "$products.id",
-          totalPurchased: { $sum: "$products.count" },
-          productName: { $first: "$products.name" },
-          prodImg: { $first: "$products.img" },
-        },
-      },
-      { $sort: { totalPurchased: -1 } },
-      { $limit: 7 },
-    ]);
-
-    if (productsAggregation.length === 0) {
+    const topProducts = await orderStatsService.getMostPurchasedProducts(7);
+    if (topProducts.length === 0) {
       return res.status(404).json({
         success: false,
         message: "No products found in orders within the last 7 days.",
       });
     }
-
-    const topProducts = productsAggregation.map((product) => ({
-      id: product._id,
-      name: product.productName,
-      totalPurchased: product.totalPurchased,
-      img: product.prodImg,
-    }));
 
     res.status(200).json({
       success: true,
@@ -740,69 +650,14 @@ const mostPurchasedProduct = asyncHandler(async (req, res) => {
       products: topProducts,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching top purchased products",
-      error: error.message,
-    });
+    return sendStatsError(res, error, "Error fetching top purchased products");
   }
 });
 
 const totalSalesByMonth = asyncHandler(async (req, res) => {
   try {
     const { year } = req.params;
-    const selectedYear = parseInt(year, 10);
-
-    const salesAggregation = await Order.aggregate([
-      {
-        $project: {
-          totalPrice: 1,
-          month: { $month: "$createdAt" },
-          year: { $year: "$createdAt" },
-        },
-      },
-      {
-        $match: { year: selectedYear },
-      },
-      {
-        $group: {
-          _id: { month: "$month" },
-          totalSales: { $sum: "$totalPrice" },
-        },
-      },
-      {
-        $sort: { "_id.month": 1 },
-      },
-    ]);
-
-    const monthlySales = Array.from({ length: 12 }, (_, i) => ({
-      month: i + 1,
-      totalSales: 0,
-    }));
-
-    salesAggregation.forEach((sale) => {
-      const monthIndex = sale._id.month - 1;
-      monthlySales[monthIndex].totalSales = sale.totalSales;
-    });
-
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ];
-    const formattedData = monthlySales.map((data, index) => ({
-      month: monthNames[index],
-      totalSales: data.totalSales,
-    }));
+    const formattedData = await orderStatsService.getTotalSalesByMonth(year);
 
     res.status(200).json({
       success: true,
@@ -810,40 +665,13 @@ const totalSalesByMonth = asyncHandler(async (req, res) => {
       data: formattedData,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching total sales by month",
-      error: error.message,
-    });
+    return sendStatsError(res, error, "Error fetching total sales by month");
   }
 });
 
 const topUsersByOrders = asyncHandler(async (req, res) => {
   try {
-    const usersAggregation = await Order.aggregate([
-      {
-        $group: {
-          _id: "$OrderBy",
-          orderCount: { $sum: 1 },
-        },
-      },
-      { $sort: { orderCount: -1 } },
-      { $limit: 5 },
-    ]);
-
-    const topUsers = await Promise.all(
-      usersAggregation.map(async (user) => {
-        const userDetails = await User.findById(user._id).select(
-          "username Avatar"
-        );
-        return {
-          userId: user._id,
-          name: userDetails?.username || "Unknown",
-          Avatar: userDetails?.Avatar || "Unknown",
-          orderCount: user.orderCount,
-        };
-      })
-    );
+    const topUsers = await orderStatsService.getTopUsersByOrders(5);
 
     res.status(200).json({
       success: true,
@@ -851,11 +679,7 @@ const topUsersByOrders = asyncHandler(async (req, res) => {
       data: topUsers,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching top users",
-      error: error.message,
-    });
+    return sendStatsError(res, error, "Error fetching top users");
   }
 });
 

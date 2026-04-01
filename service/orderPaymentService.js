@@ -32,11 +32,11 @@ function getClientIp(req) {
   );
 }
 
-function buildVnPayPaymentUrl({ amount, bankCode, locale, ipAddr }) {
+function buildVnPayPaymentUrl({ amount, bankCode, locale, ipAddr, returnUrl }) {
   const tmnCode = process.env.VNP_TMNCODE;
   const secretKey = process.env.VNP_HASHSECRET;
   const vnpUrl = process.env.VNP_URL;
-  const returnUrl = process.env.VNP_RETURNURL;
+  const vnpReturnUrl = returnUrl || process.env.VNP_RETURNURL;
   const txnRef = buildTxnRef();
 
   const createDate = moment(new Date()).format("YYYYMMDDHHmmss");
@@ -50,7 +50,7 @@ function buildVnPayPaymentUrl({ amount, bankCode, locale, ipAddr }) {
     vnp_OrderInfo: `Thanh toan cho ma GD:${txnRef}`,
     vnp_OrderType: "other",
     vnp_Amount: amount * 100,
-    vnp_ReturnUrl: returnUrl,
+    vnp_ReturnUrl: vnpReturnUrl,
     vnp_IpAddr: ipAddr,
     vnp_CreateDate: createDate,
   };
@@ -89,8 +89,64 @@ function verifyVnPayReturnQuery(rawQuery) {
   };
 }
 
+function buildCheckoutResultUrl({ kind, status, reason, idKey, idValue }) {
+  const params = new URLSearchParams({
+    kind: String(kind || ""),
+    status: String(status || ""),
+  });
+  if (reason) {
+    params.set("reason", String(reason));
+  }
+  if (idKey && idValue) {
+    params.set(String(idKey), String(idValue));
+  }
+  return `${process.env.URL_CLIENT}/checkout/result?${params.toString()}`;
+}
+
+function getSessionNotFoundRedirectUrl(kind) {
+  return buildCheckoutResultUrl({
+    kind,
+    status: "failed",
+    reason: "session_not_found",
+  });
+}
+
+async function failPaymentSessionAndBuildRedirect({ session, kind, reason }) {
+  session.status = "failed";
+  session.redirectTo = buildCheckoutResultUrl({
+    kind,
+    status: "failed",
+    reason,
+  });
+  session.consumedAt = new Date();
+  await session.save();
+  return session.redirectTo;
+}
+
+async function succeedPaymentSessionAndBuildRedirect({
+  session,
+  kind,
+  idKey,
+  idValue,
+}) {
+  session.status = "success";
+  session.redirectTo = buildCheckoutResultUrl({
+    kind,
+    status: "success",
+    idKey,
+    idValue,
+  });
+  session.consumedAt = new Date();
+  await session.save();
+  return session.redirectTo;
+}
+
 module.exports = {
   getClientIp,
   buildVnPayPaymentUrl,
   verifyVnPayReturnQuery,
+  buildCheckoutResultUrl,
+  getSessionNotFoundRedirectUrl,
+  failPaymentSessionAndBuildRedirect,
+  succeedPaymentSessionAndBuildRedirect,
 };
