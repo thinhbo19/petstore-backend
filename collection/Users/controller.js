@@ -439,13 +439,14 @@ const login = asyncHandler(async (req, res) => {
     );
 
     res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
-    issueCsrfToken(res);
+    const csrfToken = issueCsrfToken(res);
     const url = getRedirectUrlByRole(userData.role);
 
     return res.status(200).json({
       success: true,
       userData,
       accessToken,
+      csrfToken,
       url,
     });
   } catch (error) {
@@ -614,12 +615,13 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   const userData = buildUserData(response);
   const newAccessToken = generateAccessToken(response._id, response.role);
-  issueCsrfToken(res);
+  const csrfToken = issueCsrfToken(res);
 
   return res.status(200).json({
     success: true,
     userData,
     newAccessToken,
+    csrfToken,
     url: getRedirectUrlByRole(response.role),
   });
 });

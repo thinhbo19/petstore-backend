@@ -22,7 +22,6 @@ var newsSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-newsSchema.index({ title: 1 });
 newsSchema.index({ firstWord: 1 });
 
 module.exports = mongoose.model("News", newsSchema);
