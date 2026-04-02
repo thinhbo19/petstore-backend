@@ -15,6 +15,7 @@ const bcrypt = require("bcryptjs");
 const { generateSlug } = require("../../service/slugifyConfig");
 const {
   generateActivationEmail,
+  generateForgotPasswordOtpEmail,
 } = require("../../service/emailTemplateService");
 
 const sameSitePolicy = process.env.NODE_ENV === "production" ? "none" : "lax";
@@ -653,6 +654,108 @@ const forgotPassword = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     message: "Please check your email!",
+  });
+});
+const forgotPasswordOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing email!",
+    });
+  }
+  const user = await User.findOne({ email, isDeleted: { $ne: true } });
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+    });
+  }
+
+  const otp = generateOTP();
+  user.passwordResetToken = crypto
+    .createHash("sha256")
+    .update(otp)
+    .digest("hex");
+  user.passwordResetExpire = Date.now() + 15 * 60 * 1000;
+  await user.save();
+
+  const html = generateForgotPasswordOtpEmail(user.username, otp);
+  await sendMail({
+    email,
+    html,
+    type: "reset",
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "OTP has been sent to your email",
+  });
+});
+
+const verifyForgotPasswordOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing email or otp",
+    });
+  }
+
+  const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+  const user = await User.findOne({
+    email,
+    passwordResetToken: hashedOtp,
+    passwordResetExpire: { $gt: Date.now() },
+    isDeleted: { $ne: true },
+  });
+
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or expired OTP",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "OTP is valid",
+  });
+});
+
+const resetPasswordByOtp = asyncHandler(async (req, res) => {
+  const { email, otp, password } = req.body;
+  if (!email || !otp || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing input",
+    });
+  }
+
+  const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+  const user = await User.findOne({
+    email,
+    passwordResetToken: hashedOtp,
+    passwordResetExpire: { $gt: Date.now() },
+    isDeleted: { $ne: true },
+  });
+
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or expired OTP",
+    });
+  }
+
+  user.password = password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpire = undefined;
+  user.passwordChangeAt = Date.now();
+  await user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Password updated successfully",
   });
 });
 const resetPassword = asyncHandler(async (req, res) => {
@@ -1400,6 +1503,9 @@ module.exports = {
   getUserMess,
   refreshAccessToken,
   forgotPassword,
+  forgotPasswordOtp,
+  verifyForgotPasswordOtp,
+  resetPasswordByOtp,
   resetPassword,
   verifyResetToken,
   deleteUser,

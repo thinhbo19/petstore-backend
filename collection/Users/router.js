@@ -32,6 +32,9 @@ router.get(
 );
 router.post("/refreshtoken", UserControls.refreshAccessToken);
 router.post("/forgotpassword", resetPasswordLimiter, UserControls.forgotPassword);
+router.post("/forgotpassword-otp", resetPasswordLimiter, UserControls.forgotPasswordOtp);
+router.post("/verify-forgot-otp", resetPasswordLimiter, UserControls.verifyForgotPasswordOtp);
+router.post("/resetpassword-otp", resetPasswordLimiter, UserControls.resetPasswordByOtp);
 router.post("/resetpassword", resetPasswordLimiter, UserControls.resetPassword);
 router.post("/verify-reset-token", resetPasswordLimiter, UserControls.verifyResetToken);
 router.delete(

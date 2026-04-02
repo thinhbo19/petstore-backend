@@ -49,6 +49,24 @@ const generateActivationEmail = (username, otp) => {
     `;
 };
 
+const generateForgotPasswordOtpEmail = (username, otp) => {
+  return `
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f7f7; font-family: Arial, sans-serif; color: #333;">
+        <div style="background-color: #fff; padding: 20px; border-radius: 10px;">
+          <h2 style="color: #f97316; text-align: center;">Khôi phục mật khẩu</h2>
+          <p>Xin chào <strong>${username || "bạn"}</strong>,</p>
+          <p>Bạn vừa yêu cầu đặt lại mật khẩu. Vui lòng dùng mã OTP bên dưới:</p>
+          <div style="text-align:center; margin: 24px 0;">
+            <span style="font-size: 32px; letter-spacing: 6px; font-weight: 700; color: #ea580c;">${otp}</span>
+          </div>
+          <p>Mã OTP có hiệu lực trong 15 phút.</p>
+          <p>Nếu bạn không yêu cầu thao tác này, vui lòng bỏ qua email.</p>
+        </div>
+      </div>
+    `;
+};
+
 module.exports = {
   generateActivationEmail,
+  generateForgotPasswordOtpEmail,
 };

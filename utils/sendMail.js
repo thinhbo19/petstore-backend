@@ -18,7 +18,7 @@ const sendMail = asyncHandler(async ({ email, html, type }) => {
       if (type === "activation") {
         subject = "Activate your account";
       } else if (type === "reset") {
-        subject = "Forgor password!";
+        subject = "Forgot password!";
       }
       const info = await transporter.sendMail({
         from: '"PetStore " <no-reply@petstore.com>',
