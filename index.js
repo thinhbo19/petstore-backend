@@ -122,6 +122,8 @@ const io = new Server(server, {
 });
 
 let onlineUser = [];
+app.set("io", io);
+app.set("getOnlineUsers", () => onlineUser);
 
 io.use((socket, next) => {
   try {

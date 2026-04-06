@@ -9,6 +9,7 @@ const orderReadService = require("../../service/orderReadService");
 const asyncHandler = require("express-async-handler");
 const crypto = require("crypto");
 const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
+const { normalizeId } = require("../../utils/idUtils");
 require("dotenv").config();
 
 function mapOrderItemErrorToHttp(calcErr) {
@@ -254,11 +255,47 @@ const getUserOrder = asyncHandler(async (req, res) => {
 const updateStatusOrder = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
   const { status } = req.body;
+  const validStatuses = ["Processing", "Shipping", "Success", "Cancelled"];
+  if (!validStatuses.includes(String(status))) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid status",
+    });
+  }
+
   const response = await Order.findByIdAndUpdate(
     orderID,
     { status },
     { new: true }
   );
+
+  if (response) {
+    const io = req.app.get("io");
+    const getOnlineUsers = req.app.get("getOnlineUsers");
+    if (io && typeof getOnlineUsers === "function") {
+      const targetUserId = normalizeId(response.OrderBy?._id || response.OrderBy || "");
+      const onlineUsers = getOnlineUsers();
+      const receivers = onlineUsers.filter(
+        (user) => normalizeId(user.userId) === targetUserId,
+      );
+      console.info(
+        `[order-status-notify] order=${response._id} target=${targetUserId} receivers=${receivers.length}`,
+      );
+      for (const receiver of receivers) {
+        io.to(receiver.socketId).emit("getNotification", {
+          type: "ORDER_STATUS_UPDATED",
+          level: "high",
+          title: "Đơn hàng cập nhật trạng thái",
+          body: `Đơn #${String(response._id).slice(-8).toUpperCase()} đã chuyển sang trạng thái ${status}.`,
+          href: `/order-detail/${response._id}`,
+          orderId: String(response._id),
+          status,
+          date: new Date(),
+        });
+      }
+    }
+  }
+
   return res.json({
     success: response ? true : false,
     response: response ? response : "false",

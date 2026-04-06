@@ -11,7 +11,7 @@ function buildOrderPopulateQuery(query) {
 }
 
 async function getAllOrdersWithUser() {
-  return buildOrderPopulateQuery(Order.find()).exec();
+  return buildOrderPopulateQuery(Order.find().sort({ createdAt: -1 })).exec();
 }
 
 async function getOrderByIdWithRelations(orderID) {
@@ -19,7 +19,9 @@ async function getOrderByIdWithRelations(orderID) {
 }
 
 async function getOrdersByUserWithRelations(userID) {
-  return buildOrderPopulateQuery(Order.find({ OrderBy: userID })).exec();
+  return buildOrderPopulateQuery(
+    Order.find({ OrderBy: userID }).sort({ createdAt: -1 }),
+  ).exec();
 }
 
 module.exports = {
