@@ -1,6 +1,10 @@
 const router = require("express").Router();
 const uploadCloud = require("../../middlewares/uploadimg");
 const UserControls = require("./controller");
+const CartControls = require("./cartController");
+const FavoriteControls = require("./favoritesController");
+const AddressControls = require("./addressController");
+const VoucherControls = require("./voucherController");
 const {
   verifyAccessToken,
   isAdmin,
@@ -58,34 +62,34 @@ router.patch(
   [verifyAccessToken, isStrictAdmin],
   UserControls.changeRole,
 );
-router.get("/listfav", [verifyAccessToken], UserControls.getFavorites);
-router.put("/favoritePet", [verifyAccessToken], UserControls.addFavorite);
+router.get("/listfav", [verifyAccessToken], FavoriteControls.getFavorites);
+router.put("/favoritePet", [verifyAccessToken], FavoriteControls.addFavorite);
 
-router.get("/cart", [verifyAccessToken], UserControls.getCarts);
-router.put("/cart", [verifyAccessToken], UserControls.shoppingCart);
-router.put("/updateCartQuantity", [verifyAccessToken], UserControls.updateCartQuantity);
-router.delete("/deleteOneCart", [verifyAccessToken], UserControls.deleteOneCart);
+router.get("/cart", [verifyAccessToken], CartControls.getCarts);
+router.put("/cart", [verifyAccessToken], CartControls.shoppingCart);
+router.put("/updateCartQuantity", [verifyAccessToken], CartControls.updateCartQuantity);
+router.delete("/deleteOneCart", [verifyAccessToken], CartControls.deleteOneCart);
 router.delete(
   "/deleteAllCart",
   [verifyAccessToken],
-  UserControls.deleteAllCart,
+  CartControls.deleteAllCart,
 );
 
-router.post("/address", [verifyAccessToken], UserControls.addAddress);
+router.post("/address", [verifyAccessToken], AddressControls.addAddress);
 router.delete(
   "/address/:addressIndex",
   [verifyAccessToken],
-  UserControls.deleteAddress,
+  AddressControls.deleteAddress,
 );
 router.put(
   "/change-address/:addressIndex",
   verifyAccessToken,
-  UserControls.changeAddress,
+  AddressControls.changeAddress,
 );
-router.put("/change-default-address/:addressIndex", [verifyAccessToken], UserControls.changeDefaultAddress);
+router.put("/change-default-address/:addressIndex", [verifyAccessToken], AddressControls.changeDefaultAddress);
 
 router.put("/change-password", [verifyAccessToken], UserControls.changePassword);
-router.put("/add-voucher", [verifyAccessToken], UserControls.addVoucher);
-router.get("/vouchers", [verifyAccessToken], UserControls.getVouchers);
+router.put("/add-voucher", [verifyAccessToken], VoucherControls.addVoucher);
+router.get("/vouchers", [verifyAccessToken], VoucherControls.getVouchers);
 
 module.exports = router;
