@@ -38,6 +38,7 @@ const getCarts = asyncHandler(async (req, res) => {
     const user = await getUserByIdOrThrow(_id);
     res.status(200).json({
       success: true,
+      data: user.cart,
       cart: user.cart,
     });
   } catch (error) {

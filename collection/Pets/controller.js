@@ -3,6 +3,8 @@ const asyncHandler = require("express-async-handler");
 const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
 const petRatingService = require("../../service/petRatingService");
+const { ERROR_CODES } = require("../../utils/apiResponse");
+const { HttpError } = require("../../utils/httpError");
 
 const formatString = (input) => {
   const words = input.split("-");
@@ -13,51 +15,49 @@ const formatString = (input) => {
   return formattedWords.join(" ");
 };
 const createNewPets = asyncHandler(async (req, res) => {
-  try {
-    const {
-      namePet,
-      breed,
-      age,
-      gender,
-      description,
-      price,
-      quantity,
-      deworming,
-      vaccination,
-      characteristic,
-    } = req.body;
-    const imgPet = req.files.map((file) => file.path);
-    if (!mongoose.Types.ObjectId.isValid(breed)) {
-      return res.status(400).json({ message: "Invalid breed ID" });
-    }
-    const existingBreed = await PetBreed.findById(breed);
-    if (!existingBreed) {
-      return res
-        .status(404)
-        .json({ message: "Breed not found with the provided ID" });
-    }
-    const newPet = new Pets({
-      namePet,
-      petBreed: {
-        breedID: breed,
-        nameBreed: existingBreed.nameBreed,
-        nameSpecies: existingBreed.petSpecies.nameSpecies,
-      },
-      age,
-      gender,
-      description,
-      imgPet,
-      price,
-      quantity,
-      deworming,
-      vaccination,
-      characteristic,
-    });
-    await newPet.save();
-    return res.status(201).json({ success: true, newPet });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  const {
+    namePet,
+    breed,
+    age,
+    gender,
+    description,
+    price,
+    quantity,
+    deworming,
+    vaccination,
+    characteristic,
+  } = req.body;
+  const imgPet = (req.files || []).map((file) => file.path);
+  if (!mongoose.Types.ObjectId.isValid(breed)) {
+    throw new HttpError(400, "Invalid breed ID", ERROR_CODES.VALIDATION);
   }
+  const existingBreed = await PetBreed.findById(breed);
+  if (!existingBreed) {
+    throw new HttpError(
+      404,
+      "Breed not found with the provided ID",
+      ERROR_CODES.NOT_FOUND
+    );
+  }
+  const newPet = new Pets({
+    namePet,
+    petBreed: {
+      breedID: breed,
+      nameBreed: existingBreed.nameBreed,
+      nameSpecies: existingBreed.petSpecies.nameSpecies,
+    },
+    age,
+    gender,
+    description,
+    imgPet,
+    price,
+    quantity,
+    deworming,
+    vaccination,
+    characteristic,
+  });
+  await newPet.save();
+  return res.status(201).json({ success: true, newPet });
 });
 
 /** Escape string for safe use inside RegExp */
@@ -162,28 +162,24 @@ const PET_SELECT_FIELDS = [
 ];
 
 const getAllPets = asyncHandler(async (req, res) => {
-  try {
-    const { page, limit, skip } = getPagination(req.query);
-    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "createdAt");
-    const select = getFields(req.query, PET_SELECT_FIELDS);
-    const [allPets, total] = await Promise.all([
-      Pets.find().select(select).sort(sort).skip(skip).limit(limit),
-      Pets.countDocuments({}),
-    ]);
-    return res.status(200).json({
-      success: true,
-      data: allPets,
-      pets: allPets,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: "Lỗi server." });
-  }
+  const { page, limit, skip } = getPagination(req.query);
+  const sort = getSort(req.query, ["namePet", "price", "createdAt"], "createdAt");
+  const select = getFields(req.query, PET_SELECT_FIELDS);
+  const [allPets, total] = await Promise.all([
+    Pets.find().select(select).sort(sort).skip(skip).limit(limit),
+    Pets.countDocuments({}),
+  ]);
+  return res.status(200).json({
+    success: true,
+    data: allPets,
+    pets: allPets,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  });
 });
 
 /**
@@ -191,200 +187,173 @@ const getAllPets = asyncHandler(async (req, res) => {
  * GET /admin/search/:specie?q=
  */
 const searchPetsForAdmin = asyncHandler(async (req, res) => {
-  try {
-    const { specie } = req.params;
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const { specie } = req.params;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
 
-    if (!specie) {
-      return res.status(400).json({
-        success: false,
-        message: "Thiếu tham số loài (Dog / Cat).",
-      });
-    }
+  if (!specie) {
+    throw new HttpError(
+      400,
+      "Thiếu tham số loài (Dog / Cat).",
+      ERROR_CODES.VALIDATION
+    );
+  }
 
-    const { page, limit, skip } = getPagination(req.query);
-    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
-    const select = getFields(req.query, PET_SELECT_FIELDS);
-    const cacheKey = JSON.stringify({
-      specie,
-      q,
+  const { page, limit, skip } = getPagination(req.query);
+  const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
+  const select = getFields(req.query, PET_SELECT_FIELDS);
+  const cacheKey = JSON.stringify({
+    specie,
+    q,
+    page,
+    limit,
+    sort: req.query.sort || "",
+    fields: req.query.fields || "",
+  });
+  const cached = getCachedAdminSearch(cacheKey);
+  if (cached) return res.status(200).json(cached);
+
+  const filter = buildSpeciesFilter(specie, q);
+
+  const [pets, total] = await Promise.all([
+    Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+    Pets.countDocuments(filter),
+  ]);
+
+  const payload = {
+    success: true,
+    data: pets,
+    pets,
+    pagination: {
       page,
       limit,
-      sort: req.query.sort || "",
-      fields: req.query.fields || "",
-    });
-    const cached = getCachedAdminSearch(cacheKey);
-    if (cached) return res.status(200).json(cached);
-
-    const filter = buildSpeciesFilter(specie, q);
-
-    const [pets, total] = await Promise.all([
-      Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
-      Pets.countDocuments(filter),
-    ]);
-
-    const payload = {
-      success: true,
-      data: pets,
-      pets,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    };
-    setCachedAdminSearch(cacheKey, payload);
-    return res.status(200).json(payload);
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Lỗi tìm kiếm.",
-    });
-  }
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
+  setCachedAdminSearch(cacheKey, payload);
+  return res.status(200).json(payload);
 });
 
 const getNextData = asyncHandler(async (req, res) => {
-  try {
-    const { pid } = req.params;
+  const { pid } = req.params;
 
-    const pets = await Pets.find().sort({ createdAt: 1 });
+  const pets = await Pets.find().sort({ createdAt: 1 });
 
-    if (!pets.length) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không có thú nào" });
-    }
-
-    const index = pets.findIndex((p) => p._id.toString() === pid);
-
-    if (index === -1) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy thú với id này" });
-    }
-
-    const nextIndex = (index + 1) % pets.length;
-    const nextPet = pets[nextIndex];
-
-    return res.status(200).json({ success: true, pet: nextPet });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  if (!pets.length) {
+    throw new HttpError(404, "Không có thú nào", ERROR_CODES.NOT_FOUND);
   }
+
+  const index = pets.findIndex((p) => p._id.toString() === pid);
+
+  if (index === -1) {
+    throw new HttpError(
+      404,
+      "Không tìm thấy thú với id này",
+      ERROR_CODES.NOT_FOUND
+    );
+  }
+
+  const nextIndex = (index + 1) % pets.length;
+  const nextPet = pets[nextIndex];
+
+  return res.status(200).json({ success: true, pet: nextPet });
 });
 
 const deletePet = asyncHandler(async (req, res) => {
-  try {
-    const { pid } = req.params;
-    if (!pid) throw new Error("Missing Id!!");
-    const pets = await Pets.findByIdAndDelete(pid);
-    return res.status(200).json({
-      success: pets ? true : false,
-      deletePets: pets ? `Sucessfully` : "No pet is deleted",
-    });
-  } catch (error) {
-    throw new Error(error);
+  const { pid } = req.params;
+  if (!pid) {
+    throw new HttpError(400, "Missing Id", ERROR_CODES.VALIDATION);
   }
+  const pets = await Pets.findByIdAndDelete(pid);
+  return res.status(200).json({
+    success: Boolean(pets),
+    deletePets: pets ? "Successfully" : "No pet is deleted",
+  });
 });
 
 const changePets = asyncHandler(async (req, res) => {
-  try {
-    const { pid } = req.params;
-    const {
+  const { pid } = req.params;
+  const {
+    namePet,
+    age,
+    gender,
+    description,
+    price,
+    quantity,
+    deworming,
+    vaccination,
+    characteristic,
+  } = req.body;
+
+  const pet = await Pets.findById(pid);
+  if (!pet) {
+    throw new HttpError(404, "Can not find pet!", ERROR_CODES.NOT_FOUND);
+  }
+
+  const qtyProvided = quantity !== undefined && quantity !== null && quantity !== "";
+  const safeQty = qtyProvided
+    ? toSafeQuantity(quantity, 0)
+    : toSafeQuantity(pet.quantity, 0);
+
+  const updatePets = await Pets.findByIdAndUpdate(
+    pid,
+    {
       namePet,
       age,
       gender,
       description,
       price,
-      quantity,
+      ...(qtyProvided ? { quantity: safeQty } : {}),
       deworming,
       vaccination,
       characteristic,
-    } = req.body;
+      sold: safeQty > 0 ? false : true,
+    },
+    { new: true }
+  );
 
-    const pet = await Pets.findById(pid);
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: "Can not find pet!",
-      });
-    }
-
-    const qtyProvided =
-      quantity !== undefined && quantity !== null && quantity !== "";
-    const safeQty = qtyProvided
-      ? toSafeQuantity(quantity, 0)
-      : toSafeQuantity(pet.quantity, 0);
-
-    const updatePets = await Pets.findByIdAndUpdate(
-      pid,
-      {
-        namePet: namePet,
-        age: age,
-        gender: gender,
-        description: description,
-        price: price,
-        ...(qtyProvided ? { quantity: safeQty } : {}),
-        deworming: deworming,
-        vaccination: vaccination,
-        characteristic: characteristic,
-        sold: safeQty > 0 ? false : true,
-      },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: updatePets,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: "Error updating pet.",
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    message: updatePets,
+  });
 });
 
 const getCurrentPets = asyncHandler(async (req, res) => {
-  try {
-    const { pid } = req.params;
-    const existingPets = await Pets.findById(pid).select("-_id -__v");
-    if (!existingPets) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy thú cưng!!!" });
-    }
-    return res.status(200).json({ success: true, pet: existingPets });
-  } catch (error) {
-    return res.status(400).json({ success: false, message: "Lỗi." });
+  const { pid } = req.params;
+  const existingPets = await Pets.findById(pid).select("-_id -__v");
+  if (!existingPets) {
+    throw new HttpError(
+      404,
+      "Không tìm thấy thú cưng!!!",
+      ERROR_CODES.NOT_FOUND
+    );
   }
+  return res.status(200).json({ success: true, pet: existingPets });
 });
 
 const getCurrentPetsByName = asyncHandler(async (req, res) => {
-  try {
-    const { pName } = req.params;
-    const parts = pName.trim().split(" ");
-    const lastPart = parts[parts.length - 1];
+  const { pName } = req.params;
+  const parts = pName.trim().split(" ");
+  const lastPart = parts[parts.length - 1];
 
-    const regexNamePet = new RegExp(lastPart, "i");
+  const regexNamePet = new RegExp(lastPart, "i");
 
-    const existingPets = await Pets.find({
-      $or: [
-        { namePet: { $regex: regexNamePet } },
-        { namePet: { $regex: new RegExp(pName, "i") } },
-      ],
-    }).select("-__v");
+  const existingPets = await Pets.find({
+    $or: [
+      { namePet: { $regex: regexNamePet } },
+      { namePet: { $regex: new RegExp(pName, "i") } },
+    ],
+  }).select("-__v");
 
-    if (!existingPets.length) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy thú cưng!!!" });
-    }
-
-    return res.status(200).json({ success: true, pets: existingPets });
-  } catch (error) {
-    return res.status(400).json({ success: false, message: "Lỗi." });
+  if (!existingPets.length) {
+    throw new HttpError(
+      404,
+      "Không tìm thấy thú cưng!!!",
+      ERROR_CODES.NOT_FOUND
+    );
   }
+
+  return res.status(200).json({ success: true, data: existingPets, pets: existingPets });
 });
 
 const getPetBySpecies = asyncHandler(async (req, res) => {
@@ -392,85 +361,77 @@ const getPetBySpecies = asyncHandler(async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
 
   if (!specie) {
-    return res.status(400).json({ message: "Species parameter is required" });
+    throw new HttpError(
+      400,
+      "Species parameter is required",
+      ERROR_CODES.VALIDATION
+    );
   }
 
-  try {
-    const { page, limit, skip } = getPagination(req.query);
-    const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
-    const select = getFields(req.query, PET_SELECT_FIELDS);
-    const filter = buildSpeciesFilter(specie, q);
+  const { page, limit, skip } = getPagination(req.query);
+  const sort = getSort(req.query, ["namePet", "price", "createdAt"], "namePet");
+  const select = getFields(req.query, PET_SELECT_FIELDS);
+  const filter = buildSpeciesFilter(specie, q);
 
-    const [pets, total] = await Promise.all([
-      Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
-      Pets.countDocuments(filter),
-    ]);
+  const [pets, total] = await Promise.all([
+    Pets.find(filter).select(select).sort(sort).skip(skip).limit(limit),
+    Pets.countDocuments(filter),
+  ]);
 
-    return res.status(200).json({
-      success: true,
-      data: pets,
-      pets,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    data: pets,
+    pets,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  });
 });
 
 const getPetByBreed = asyncHandler(async (req, res) => {
   const { breed } = req.params;
 
   if (!breed) {
-    res.status(400);
-    throw new Error("Breed parameter is required");
+    throw new HttpError(
+      400,
+      "Breed parameter is required",
+      ERROR_CODES.VALIDATION
+    );
   }
 
-  try {
-    const formattedBreed = formatString(breed);
+  const formattedBreed = formatString(breed);
 
-    const pets = await Pets.find({ "petBreed.nameBreed": formattedBreed });
-    if (pets.length === 0) {
-      return res.status(404).json({
-        message: `No pets found for breed: ${formattedBreed}`,
-      });
-    }
-
-    res.status(200).json(pets);
-  } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+  const pets = await Pets.find({ "petBreed.nameBreed": formattedBreed });
+  if (pets.length === 0) {
+    throw new HttpError(
+      404,
+      `No pets found for breed: ${formattedBreed}`,
+      ERROR_CODES.NOT_FOUND
+    );
   }
+
+  return res.status(200).json({ success: true, data: pets, pets });
 });
 
 const sortingPet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
   const { sort } = req.query;
   const sortOption = getPetSortOption(sort);
-
-  try {
-    const formattedBreed = formatString(breed);
-    const pets = await Pets.find({
-      "petBreed.nameBreed": formattedBreed,
-    }).sort(sortOption);
-    if (pets.length === 0) {
-      return res
-        .status(404)
-        .json({ message: `No pets found for breed: ${formattedBreed}` });
-    }
-    return res.status(200).json(pets);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
+  const formattedBreed = formatString(breed);
+  const pets = await Pets.find({
+    "petBreed.nameBreed": formattedBreed,
+  }).sort(sortOption);
+  if (pets.length === 0) {
+    throw new HttpError(
+      404,
+      `No pets found for breed: ${formattedBreed}`,
+      ERROR_CODES.NOT_FOUND
+    );
   }
+  return res.status(200).json(pets);
 });
 const filterPricePet = asyncHandler(async (req, res) => {
   const { breed } = req.params;
@@ -479,32 +440,31 @@ const filterPricePet = asyncHandler(async (req, res) => {
     minPrice,
     maxPrice,
   });
-  if (priceError) return res.status(400).json({ message: priceError });
-  try {
-    const formattedBreed = formatString(breed);
-    const pets = await Pets.find({
-      "petBreed.nameBreed": formattedBreed,
-      price: priceQuery,
-    });
-
-    if (pets.length === 0) {
-      return res.status(404).json({
-        data: pets,
-        message: "No pets found in this price range",
-      });
-    }
-    return res.status(200).json(pets);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
+  if (priceError) {
+    throw new HttpError(400, priceError, ERROR_CODES.VALIDATION);
   }
+  const formattedBreed = formatString(breed);
+  const pets = await Pets.find({
+    "petBreed.nameBreed": formattedBreed,
+    price: priceQuery,
+  });
+
+  if (pets.length === 0) {
+    throw new HttpError(
+      404,
+      "No pets found in this price range",
+      ERROR_CODES.NOT_FOUND
+    );
+  }
+  return res.status(200).json(pets);
 });
 
 const postRating = asyncHandler(async (req, res) => {
+  const { star, comment } = req.body;
+  const postBy = req.user?._id;
+  const { petId } = req.params;
+  const newFiles = (req.files || []).map((file) => file.path);
   try {
-    const { star, comment } = req.body;
-    const postBy = req.user?._id;
-    const { petId } = req.params;
-    const newFiles = (req.files || []).map((file) => file.path);
     const { action, pet } = await petRatingService.upsertPetRating({
       petId,
       postBy,
@@ -513,35 +473,25 @@ const postRating = asyncHandler(async (req, res) => {
       newFiles,
     });
     if (action === "updated") {
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: "Rating updated successfully.",
         pet,
       });
-    } else {
-      res.status(200).json({
-        success: true,
-        message: "Rating added successfully.",
-        pet,
-      });
     }
+    return res.status(200).json({
+      success: true,
+      message: "Rating added successfully.",
+      pet,
+    });
   } catch (error) {
     if (error.status === 400) {
-      return res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw new HttpError(400, error.message, ERROR_CODES.VALIDATION);
     }
     if (error.status === 404) {
-      return res.status(404).json({
-        success: false,
-        message: error.message,
-      });
+      throw new HttpError(404, error.message, ERROR_CODES.NOT_FOUND);
     }
-    res.status(500).json({
-      success: false,
-      message: error.message || "Lỗi máy chủ",
-    });
+    throw error;
   }
 });
 
@@ -557,15 +507,9 @@ const deleteRating = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     if (error.status === 404) {
-      return res.status(404).json({
-        success: false,
-        message: error.message,
-      });
+      throw new HttpError(404, error.message, ERROR_CODES.NOT_FOUND);
     }
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    throw error;
   }
 });
 

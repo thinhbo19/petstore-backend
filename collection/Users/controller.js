@@ -13,6 +13,8 @@ const {
   generateActivationEmail,
   generateForgotPasswordOtpEmail,
 } = require("../../service/emailTemplateService");
+const { ERROR_CODES } = require("../../utils/apiResponse");
+const { HttpError } = require("../../utils/httpError");
 
 const sameSitePolicy = process.env.NODE_ENV === "production" ? "none" : "lax";
 
@@ -130,71 +132,47 @@ const createAuditLog = async (req, action, targetUser, details = {}) => {
     console.error("Failed to write audit log:", error.message);
   }
 };
-const sendUserServerError = (
-  res,
-  message,
-  { includeSuccess = true, logLabel, error } = {},
-) => {
-  if (logLabel) {
-    console.error(`${logLabel}:`, error);
-  }
-  if (includeSuccess) {
-    return res.status(500).json({ success: false, message });
-  }
-  return res.status(500).json({ message });
-};
-
 const createAccount = asyncHandler(async (req, res) => {
-  try {
-    const { email, password, username, mobile, role, isBlocked } = req.body;
-    if (!email || !password || !username || !role) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing inputs",
-      });
-    }
-    if (!PASSWORD_REGEX_ADMIN.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password must be at least 3 characters long and include both letters and numbers",
-      });
-    }
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User with this email already exists",
-      });
-    } else {
-      const assignedStaff =
-        role === "User" ? await getLeastBusyStaffId() : null;
-
-      const newUser = await User.create({
-        email: email,
-        password: password,
-        username: username,
-        isBlocked: typeof isBlocked === "boolean" ? isBlocked : false,
-        role: role,
-        mobile: mobile,
-        assignedStaff,
-      });
-      if (newUser) {
-        await createAuditLog(req, "CREATE_USER", newUser, {
-          createdRole: role,
-          isBlocked: newUser.isBlocked,
-        });
-        return res.status(200).json({
-          success: true,
-          message: "Create account successful!",
-        });
-      } else {
-        return sendUserServerError(res, "Something went wrong.");
-      }
-    }
-  } catch (error) {
-    return sendUserServerError(res, "Something went wrong", { error });
+  const { email, password, username, mobile, role, isBlocked } = req.body;
+  if (!email || !password || !username || !role) {
+    throw new HttpError(400, "Missing inputs", ERROR_CODES.VALIDATION);
   }
+  if (!PASSWORD_REGEX_ADMIN.test(password)) {
+    throw new HttpError(
+      400,
+      "Password must be at least 3 characters long and include both letters and numbers",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    throw new HttpError(
+      400,
+      "User with this email already exists",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  const assignedStaff = role === "User" ? await getLeastBusyStaffId() : null;
+  const newUser = await User.create({
+    email,
+    password,
+    username,
+    isBlocked: typeof isBlocked === "boolean" ? isBlocked : false,
+    role,
+    mobile,
+    assignedStaff,
+  });
+
+  await createAuditLog(req, "CREATE_USER", newUser, {
+    createdRole: role,
+    isBlocked: newUser.isBlocked,
+  });
+  return res.status(200).json({
+    success: true,
+    message: "Create account successful!",
+  });
 });
 
 const generateOTP = () => {
@@ -202,235 +180,183 @@ const generateOTP = () => {
 };
 
 const register = asyncHandler(async (req, res) => {
-  try {
-    const { email, password, username, mobile } = req.body;
-    if (!email || !password || !username || !mobile) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing inputs",
-      });
-    }
-    if (!PASSWORD_REGEX_REGISTER.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password must be at least 8 characters long and include both letters and numbers",
-      });
-    }
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User with this email already exists",
-      });
-    } else {
-      const otpPayload = buildOtpPayload();
-
-      const assignedStaff = await getLeastBusyStaffId();
-      const newUser = await User.create({
-        email: email,
-        password: password,
-        username: username,
-        mobile: mobile,
-        isBlocked: true,
-        assignedStaff,
-        otp: otpPayload,
-      });
-
-      await sendActivationOtpEmail({
-        email,
-        username,
-        otp: otpPayload.code,
-        subject: "Activate Your Account - OTP Verification",
-      });
-
-      if (newUser) {
-        return res.status(200).json({
-          success: true,
-          message:
-            "Registration successful. Please check your email for OTP verification!",
-        });
-      } else {
-        return sendUserServerError(res, "Something went wrong during registration.");
-      }
-    }
-  } catch (error) {
-    return sendUserServerError(res, "Something went wrong during registration.", {
-      error,
-    });
+  const { email, password, username, mobile } = req.body;
+  if (!email || !password || !username || !mobile) {
+    throw new HttpError(400, "Missing inputs", ERROR_CODES.VALIDATION);
   }
+  if (!PASSWORD_REGEX_REGISTER.test(password)) {
+    throw new HttpError(
+      400,
+      "Password must be at least 8 characters long and include both letters and numbers",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    throw new HttpError(
+      400,
+      "User with this email already exists",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  const otpPayload = buildOtpPayload();
+  const assignedStaff = await getLeastBusyStaffId();
+  await User.create({
+    email,
+    password,
+    username,
+    mobile,
+    isBlocked: true,
+    assignedStaff,
+    otp: otpPayload,
+  });
+
+  await sendActivationOtpEmail({
+    email,
+    username,
+    otp: otpPayload.code,
+    subject: "Activate Your Account - OTP Verification",
+  });
+
+  return res.status(200).json({
+    success: true,
+    message:
+      "Registration successful. Please check your email for OTP verification!",
+  });
 });
 
 const activateAccount = asyncHandler(async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and OTP are required",
-      });
-    }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.otp || !user.otp.code || !user.otp.expiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "No OTP found for this user",
-      });
-    }
-
-    if (user.otp.code !== otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    if (new Date() > user.otp.expiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired",
-      });
-    }
-
-    user.isBlocked = false;
-    user.otp = undefined;
-    await user.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Account activated successfully!",
-    });
-  } catch (error) {
-    return sendUserServerError(res, "Error activating account.", { error });
+  if (!email || !otp) {
+    throw new HttpError(
+      400,
+      "Email and OTP are required",
+      ERROR_CODES.VALIDATION,
+    );
   }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  if (!user.otp || !user.otp.code || !user.otp.expiresAt) {
+    throw new HttpError(
+      400,
+      "No OTP found for this user",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  if (user.otp.code !== otp) {
+    throw new HttpError(400, "Invalid OTP", ERROR_CODES.VALIDATION);
+  }
+
+  if (new Date() > user.otp.expiresAt) {
+    throw new HttpError(400, "OTP has expired", ERROR_CODES.VALIDATION);
+  }
+
+  user.isBlocked = false;
+  user.otp = undefined;
+  await user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Account activated successfully!",
+  });
 });
 
 const resendOTP = asyncHandler(async (req, res) => {
-  try {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required",
-      });
-    }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.isBlocked) {
-      return res.status(400).json({
-        success: false,
-        message: "Account is already activated",
-      });
-    }
-
-    const otpPayload = buildOtpPayload();
-    user.otp = otpPayload;
-    await user.save();
-
-    await sendActivationOtpEmail({
-      email,
-      username: user.username,
-      otp: otpPayload.code,
-      subject: "New OTP for Account Activation",
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "New OTP has been sent to your email",
-    });
-  } catch (error) {
-    return sendUserServerError(res, "Error sending new OTP", { error });
+  if (!email) {
+    throw new HttpError(400, "Email is required", ERROR_CODES.VALIDATION);
   }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  if (!user.isBlocked) {
+    throw new HttpError(
+      400,
+      "Account is already activated",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  const otpPayload = buildOtpPayload();
+  user.otp = otpPayload;
+  await user.save();
+
+  await sendActivationOtpEmail({
+    email,
+    username: user.username,
+    otp: otpPayload.code,
+    subject: "New OTP for Account Activation",
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "New OTP has been sent to your email",
+  });
 });
 
 const login = asyncHandler(async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing Email",
-      });
-    }
-
-    if (!password) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing Password",
-      });
-    }
-
-    const user = await User.findOne({ email, isDeleted: { $ne: true } });
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-    if (user.isBlocked) {
-      return res.status(403).json({
-        success: false,
-        message: "Your account has been blocked.",
-      });
-    }
-
-    const isPasswordCorrect = await user.isCorrectPassword(password);
-
-    if (!isPasswordCorrect) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Password",
-      });
-    }
-
-    const userData = buildUserData(user);
-
-    const accessToken = generateAccessToken(user._id, user.role);
-    const newRefreshToken = generateRefreshToken(user._id);
-
-    await User.findByIdAndUpdate(
-      user._id,
-      { refreshToken: newRefreshToken },
-      { new: true },
-    );
-
-    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
-    const csrfToken = issueCsrfToken(res);
-    const url = getRedirectUrlByRole(userData.role);
-
-    return res.status(200).json({
-      success: true,
-      userData,
-      accessToken,
-      csrfToken,
-      url,
-    });
-  } catch (error) {
-    return sendUserServerError(res, "Something went wrong during login.", {
-      error,
-      logLabel: "Error during login",
-    });
+  if (!email) {
+    throw new HttpError(400, "Missing Email", ERROR_CODES.VALIDATION);
   }
+
+  if (!password) {
+    throw new HttpError(400, "Missing Password", ERROR_CODES.VALIDATION);
+  }
+
+  const user = await User.findOne({ email, isDeleted: { $ne: true } });
+  if (!user) {
+    throw new HttpError(400, "User not found", ERROR_CODES.VALIDATION);
+  }
+  if (user.isBlocked) {
+    throw new HttpError(
+      403,
+      "Your account has been blocked.",
+      ERROR_CODES.FORBIDDEN,
+    );
+  }
+
+  const isPasswordCorrect = await user.isCorrectPassword(password);
+
+  if (!isPasswordCorrect) {
+    throw new HttpError(400, "Invalid Password", ERROR_CODES.VALIDATION);
+  }
+
+  const userData = buildUserData(user);
+  const accessToken = generateAccessToken(user._id, user.role);
+  const newRefreshToken = generateRefreshToken(user._id);
+
+  await User.findByIdAndUpdate(
+    user._id,
+    { refreshToken: newRefreshToken },
+    { new: true },
+  );
+
+  res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
+  const csrfToken = issueCsrfToken(res);
+  const url = getRedirectUrlByRole(userData.role);
+
+  return res.status(200).json({
+    success: true,
+    userData,
+    accessToken,
+    csrfToken,
+    url,
+  });
 });
 
 const logout = asyncHandler(async (req, res) => {
@@ -458,59 +384,55 @@ const logout = asyncHandler(async (req, res) => {
   });
 });
 const getallAccount = asyncHandler(async (req, res) => {
-  try {
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(
-      Math.max(parseInt(req.query.limit, 10) || 10, 1),
-      100,
-    );
-    const search = (req.query.search || "").trim();
-    const role = req.query.role;
-    const isBlocked = req.query.isBlocked;
-    const includeDeleted = req.query.includeDeleted === "true";
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit, 10) || 10, 1),
+    100,
+  );
+  const search = (req.query.search || "").trim();
+  const role = req.query.role;
+  const isBlocked = req.query.isBlocked;
+  const includeDeleted = req.query.includeDeleted === "true";
 
-    const query = {};
+  const query = {};
 
-    if (!includeDeleted) {
-      query.isDeleted = { $ne: true };
-    }
-
-    if (search) {
-      query.$or = [
-        { username: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { mobile: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (role) {
-      query.role = role;
-    }
-
-    if (typeof isBlocked !== "undefined" && isBlocked !== "") {
-      query.isBlocked = isBlocked === "true";
-    }
-
-    const total = await User.countDocuments(query);
-    const users = await User.find(query)
-      .select("-refreshToken -password")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    return res.status(200).json({
-      success: true,
-      users,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    throw new Error(error);
+  if (!includeDeleted) {
+    query.isDeleted = { $ne: true };
   }
+
+  if (search) {
+    query.$or = [
+      { username: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { mobile: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  if (role) {
+    query.role = role;
+  }
+
+  if (typeof isBlocked !== "undefined" && isBlocked !== "") {
+    query.isBlocked = isBlocked === "true";
+  }
+
+  const total = await User.countDocuments(query);
+  const users = await User.find(query)
+    .select("-refreshToken -password")
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  return res.status(200).json({
+    success: true,
+    users,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 });
 const getOneUser = asyncHandler(async (req, res) => {
   const { _id } = req.user;
@@ -518,44 +440,29 @@ const getOneUser = asyncHandler(async (req, res) => {
     "-refreshToken -password -role -createdAt -updatedAt -passwordChangeAt -passwordResetExpire -passwordResetToken",
   );
   if (!user || user.isDeleted) {
-    return res.status(404).json({
-      success: false,
-      rs: "User not found",
-    });
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
   }
   return res.status(200).json({
     success: true,
+    data: user,
     rs: user,
   });
 });
 const getUserMess = asyncHandler(async (req, res) => {
-  try {
-    const { _id } = req.query;
-    if (!_id) {
-      return res.status(400).json({
-        success: false,
-        message: "UID không được truyền",
-      });
-    }
-    const user = await User.findById(_id).select(
-      "-refreshToken -password -role",
-    );
-    if (!user || user.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy người dùng",
-      });
-    }
-    res.status(200).json({
-      success: true,
-      message: user,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Lỗi máy chủ",
-    });
+  const { _id } = req.query;
+  if (!_id) {
+    throw new HttpError(400, "UID không được truyền", ERROR_CODES.VALIDATION);
   }
+  const user = await User.findById(_id).select(
+    "-refreshToken -password -role",
+  );
+  if (!user || user.isDeleted) {
+    throw new HttpError(404, "Không tìm thấy người dùng", ERROR_CODES.NOT_FOUND);
+  }
+  return res.status(200).json({
+    success: true,
+    message: user,
+  });
 });
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const cookie = req.cookies;
@@ -735,7 +642,9 @@ const resetPasswordByOtp = asyncHandler(async (req, res) => {
 });
 const resetPassword = asyncHandler(async (req, res) => {
   const { password, token } = req.body;
-  if (!password || !token) throw new Error("Miss input!!");
+  if (!password || !token) {
+    throw new HttpError(400, "Miss input!!", ERROR_CODES.VALIDATION);
+  }
   const passwordResetToken = crypto
     .createHash("sha256")
     .update(token)
@@ -744,7 +653,9 @@ const resetPassword = asyncHandler(async (req, res) => {
     passwordResetToken,
     passwordResetExpire: { $gt: Date.now() },
   });
-  if (!user) throw new Error("Invalid reset token!!");
+  if (!user) {
+    throw new HttpError(400, "Invalid reset token!!", ERROR_CODES.VALIDATION);
+  }
   user.password = password;
   user.passwordResetToken = undefined;
   user.passwordChangeAt = Date.now();
@@ -771,220 +682,197 @@ const verifyResetToken = asyncHandler(async (req, res) => {
   });
 });
 
-const changePassword = async (req, res) => {
+const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
   const userId = req.user?._id;
 
   const user = await User.findById(userId);
   if (!user) {
-    return res.status(404).json({ message: "User not found" });
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
   }
 
   const isMatch = await user.isCorrectPassword(currentPassword);
   if (!isMatch) {
-    return res.status(400).json({ message: "Current password is incorrect" });
+    throw new HttpError(
+      400,
+      "Current password is incorrect",
+      ERROR_CODES.VALIDATION,
+    );
   }
 
   if (newPassword !== confirmPassword) {
-    return res.status(400).json({ message: "Passwords do not match" });
+    throw new HttpError(400, "Passwords do not match", ERROR_CODES.VALIDATION);
   }
 
   user.password = newPassword;
 
   await user.save();
 
-  res.status(200).json({ success: true, message: "Password updated successfully" });
-};
+  return res
+    .status(200)
+    .json({ success: true, message: "Password updated successfully" });
+});
 const deleteUser = asyncHandler(async (req, res) => {
-  try {
-    const { uid } = req.params;
-    const actorId = String(req.user?._id || "");
-    if (!uid) {
-      return res.status(400).json({ success: false, message: "Missing Id!!" });
-    }
-
-    if (actorId === String(uid)) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot delete your own account",
-      });
-    }
-
-    const user = await User.findById(uid);
-    if (!user || user.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (user.role === "Admin") {
-      const adminCount = await countActiveAdmins();
-      if (adminCount <= 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot delete the last active admin account",
-        });
-      }
-    }
-
-    user.isDeleted = true;
-    user.deletedAt = new Date();
-    user.isBlocked = true;
-    user.refreshToken = "";
-    await user.save();
-
-    await createAuditLog(req, "SOFT_DELETE_USER", user, {
-      deletedAt: user.deletedAt,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `User with email ${user.email} has been archived`,
-    });
-  } catch (error) {
-    console.error("Error in deleting user:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal Server Error" });
+  const { uid } = req.params;
+  const actorId = String(req.user?._id || "");
+  if (!uid) {
+    throw new HttpError(400, "Missing Id!!", ERROR_CODES.VALIDATION);
   }
+
+  if (actorId === String(uid)) {
+    throw new HttpError(
+      400,
+      "You cannot delete your own account",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  const user = await User.findById(uid);
+  if (!user || user.isDeleted) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  if (user.role === "Admin") {
+    const adminCount = await countActiveAdmins();
+    if (adminCount <= 1) {
+      throw new HttpError(
+        400,
+        "Cannot delete the last active admin account",
+        ERROR_CODES.VALIDATION,
+      );
+    }
+  }
+
+  user.isDeleted = true;
+  user.deletedAt = new Date();
+  user.isBlocked = true;
+  user.refreshToken = "";
+  await user.save();
+
+  await createAuditLog(req, "SOFT_DELETE_USER", user, {
+    deletedAt: user.deletedAt,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: `User with email ${user.email} has been archived`,
+  });
 });
 const updateUserByUser = asyncHandler(async (req, res) => {
-  try {
-    const { _id } = req.user;
-    if (!_id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing user ID" });
-    }
-
-    let updateData = req.body;
-    if (req.file && req.file.path) {
-      updateData.Avatar = req.file.path;
-    }
-
-    const user = await User.findByIdAndUpdate(_id, updateData, {
-      new: true,
-    }).select("-password -role");
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    return res.status(200).json({ success: true, updateUser: user });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  const { _id } = req.user;
+  if (!_id) {
+    throw new HttpError(400, "Missing user ID", ERROR_CODES.VALIDATION);
   }
+
+  let updateData = req.body;
+  if (req.file && req.file.path) {
+    updateData.Avatar = req.file.path;
+  }
+
+  const user = await User.findByIdAndUpdate(_id, updateData, {
+    new: true,
+  }).select("-password -role");
+  if (!user) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  return res.status(200).json({ success: true, data: user, updateUser: user });
 });
 const blockAccount = asyncHandler(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const actorId = String(req.user?._id || "");
-    if (!userId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing user ID" });
-    }
-
-    if (actorId === String(userId) && req.body?.isBlocked === true) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot block your own account",
-      });
-    }
-
-    let updateData = req.body;
-    if (req.file && req.file.path) {
-      updateData.Avatar = req.file.path;
-    }
-
-    const targetUser = await User.findById(userId);
-    if (!targetUser || targetUser.isDeleted) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    if (targetUser.role === "Admin" && updateData?.isBlocked === true) {
-      const adminCount = await countActiveAdmins();
-      if (adminCount <= 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot block the last active admin account",
-        });
-      }
-    }
-
-    const user = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    }).select("-password -refreshToken");
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
-
-    await createAuditLog(req, "UPDATE_USER", user, {
-      changedFields: Object.keys(updateData || {}),
-    });
-
-    return res.status(200).json({ success: true, updateUser: user });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  const { userId } = req.params;
+  const actorId = String(req.user?._id || "");
+  if (!userId) {
+    throw new HttpError(400, "Missing user ID", ERROR_CODES.VALIDATION);
   }
+
+  if (actorId === String(userId) && req.body?.isBlocked === true) {
+    throw new HttpError(
+      400,
+      "You cannot block your own account",
+      ERROR_CODES.VALIDATION,
+    );
+  }
+
+  let updateData = req.body;
+  if (req.file && req.file.path) {
+    updateData.Avatar = req.file.path;
+  }
+
+  const targetUser = await User.findById(userId);
+  if (!targetUser || targetUser.isDeleted) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  if (targetUser.role === "Admin" && updateData?.isBlocked === true) {
+    const adminCount = await countActiveAdmins();
+    if (adminCount <= 1) {
+      throw new HttpError(
+        400,
+        "Cannot block the last active admin account",
+        ERROR_CODES.VALIDATION,
+      );
+    }
+  }
+
+  const user = await User.findByIdAndUpdate(userId, updateData, {
+    new: true,
+  }).select("-password -refreshToken");
+  if (!user) {
+    throw new HttpError(404, "User not found", ERROR_CODES.NOT_FOUND);
+  }
+
+  await createAuditLog(req, "UPDATE_USER", user, {
+    changedFields: Object.keys(updateData || {}),
+  });
+
+  return res.status(200).json({ success: true, data: user, updateUser: user });
 });
 const changeRole = asyncHandler(async (req, res) => {
-  try {
-    const { userId, newRole } = req.body;
-    const actorId = String(req.user?._id || "");
+  const { userId, newRole } = req.body;
+  const actorId = String(req.user?._id || "");
 
-    if (actorId === String(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: "You cannot change your own role",
-      });
-    }
-
-    const user = await User.findById(userId);
-    if (!user || user.isDeleted) {
-      return res.status(404).json({ success: false, message: "User not found!!" });
-    }
-    const validRoles = ["Admin", "User", "Staff"];
-    if (!validRoles.includes(newRole)) {
-      return res.status(400).json({ success: false, message: "Invalid role" });
-    }
-
-    if (user.role === "Admin" && newRole !== "Admin") {
-      const adminCount = await countActiveAdmins();
-      if (adminCount <= 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot change role of the last active admin",
-        });
-      }
-    }
-
-    const previousRole = user.role;
-    user.role = newRole;
-    const updatedUser = await user.save();
-
-    await createAuditLog(req, "CHANGE_ROLE", updatedUser, {
-      from: previousRole,
-      to: newRole,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Change role successfully",
-      user: updatedUser,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error when change",
-    });
+  if (actorId === String(userId)) {
+    throw new HttpError(
+      400,
+      "You cannot change your own role",
+      ERROR_CODES.VALIDATION,
+    );
   }
+
+  const user = await User.findById(userId);
+  if (!user || user.isDeleted) {
+    throw new HttpError(404, "User not found!!", ERROR_CODES.NOT_FOUND);
+  }
+  const validRoles = ["Admin", "User", "Staff"];
+  if (!validRoles.includes(newRole)) {
+    throw new HttpError(400, "Invalid role", ERROR_CODES.VALIDATION);
+  }
+
+  if (user.role === "Admin" && newRole !== "Admin") {
+    const adminCount = await countActiveAdmins();
+    if (adminCount <= 1) {
+      throw new HttpError(
+        400,
+        "Cannot change role of the last active admin",
+        ERROR_CODES.VALIDATION,
+      );
+    }
+  }
+
+  const previousRole = user.role;
+  user.role = newRole;
+  const updatedUser = await user.save();
+
+  await createAuditLog(req, "CHANGE_ROLE", updatedUser, {
+    from: previousRole,
+    to: newRole,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Change role successfully",
+    user: updatedUser,
+  });
 });
 module.exports = {
   createAccount,

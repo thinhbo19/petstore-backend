@@ -8,6 +8,8 @@ const {
   getSort,
   getFields,
 } = require("../../utils/queryHelpers");
+const { HttpError } = require("../../utils/httpError");
+const { ERROR_CODES } = require("../../utils/apiResponse");
 
 const createNewBreed = asyncHandler(async (req, res) => {
   const { nameBreed, speciesID } = req.body;
@@ -117,7 +119,7 @@ const getCurrentBreed = asyncHandler(async (req, res) => {
         .status(404)
         .json({ success: false, message: "Không tìm thấy!!!" });
     }
-    return res.status(200).json({ success: true, breed: existingBreed });
+    return res.status(200).json({ success: true, data: existingBreed, breed: existingBreed });
   } catch (error) {
     return res.status(400).json({ success: false, message: "Lỗi." });
   }
@@ -139,18 +141,28 @@ const getBreedBySpecies = asyncHandler(async (req, res) => {
   const { species } = req.params;
 
   if (!species) {
-    res.status(400);
-    throw new Error("Species parameter is required");
+    throw new HttpError(
+      400,
+      "Species parameter is required",
+      ERROR_CODES.VALIDATION
+    );
   }
 
   const breeds = await PetBreed.find({ "petSpecies.speciesID": species });
 
   if (breeds.length === 0) {
-    res.status(404);
-    throw new Error(`No breeds found for species: ${species}`);
+    throw new HttpError(
+      404,
+      `No breeds found for species: ${species}`,
+      ERROR_CODES.NOT_FOUND
+    );
   }
 
-  res.status(200).json(breeds);
+  return res.status(200).json({
+    success: true,
+    data: breeds,
+    breeds,
+  });
 });
 
 const getBreedByNameSpecies = asyncHandler(async (req, res) => {
@@ -168,8 +180,11 @@ const getBreedByNameSpecies = asyncHandler(async (req, res) => {
   ]);
 
   if (!nameSpecies) {
-    res.status(400);
-    throw new Error("Species parameter is required");
+    throw new HttpError(
+      400,
+      "Species parameter is required",
+      ERROR_CODES.VALIDATION
+    );
   }
 
   const filter = {
@@ -216,19 +231,17 @@ const sortingBreed = asyncHandler(async (req, res) => {
       sortOption = {}; // No sorting
   }
 
-  try {
-    const breeds = await PetBreed.find({
-      "petSpecies.nameSpecies": species,
-    }).sort(sortOption);
-    if (breeds.length === 0) {
-      return res
-        .status(404)
-        .json({ message: `No breeds found for species: ${species}` });
-    }
-    return res.status(200).json(breeds);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
+  const breeds = await PetBreed.find({
+    "petSpecies.nameSpecies": species,
+  }).sort(sortOption);
+  if (breeds.length === 0) {
+    throw new HttpError(
+      404,
+      `No breeds found for species: ${species}`,
+      ERROR_CODES.NOT_FOUND
+    );
   }
+  return res.status(200).json({ success: true, data: breeds, breeds });
 });
 
 module.exports = {

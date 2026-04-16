@@ -494,6 +494,7 @@ const totalPriceBooking = asyncHandler(async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Total price for all bookings calculated successfully",
+      data: { totalPrice },
       totalPrice,
     });
   } catch (error) {

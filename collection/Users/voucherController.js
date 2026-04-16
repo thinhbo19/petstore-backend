@@ -42,7 +42,7 @@ const getVouchers = asyncHandler(async (req, res) => {
       return voucherExpiry && voucherExpiry > currentDate;
     }).map((voucher) => voucher.voucherID);
 
-    return res.status(200).json({ vouchers: validVouchers });
+    return res.status(200).json({ success: true, data: validVouchers, vouchers: validVouchers });
   } catch (error) {
     if (error.status === 404) {
       return res.status(404).json({ message: error.message });

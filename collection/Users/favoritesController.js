@@ -87,9 +87,12 @@ const getFavorites = asyncHandler(async (req, res) => {
     const allFavorites = user.favorites;
     allFavorites.sort((a, b) => b.createdAt - a.createdAt);
 
+    const orderedFavorites = [...allFavorites].reverse();
     return res.status(200).json({
+      success: true,
+      data: orderedFavorites,
       message: "List of favorite items",
-      favorites: allFavorites.reverse(),
+      favorites: orderedFavorites,
     });
   } catch (error) {
     console.error("Error while fetching favorites:", error);

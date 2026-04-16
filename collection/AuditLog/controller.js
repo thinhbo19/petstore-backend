@@ -31,6 +31,15 @@ const getAuditLogs = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
+    data: {
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    },
     logs,
     pagination: {
       page,

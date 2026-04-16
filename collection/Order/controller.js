@@ -10,6 +10,8 @@ const asyncHandler = require("express-async-handler");
 const crypto = require("crypto");
 const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
 const { normalizeId } = require("../../utils/idUtils");
+const { ERROR_CODES } = require("../../utils/apiResponse");
+const { HttpError } = require("../../utils/httpError");
 require("dotenv").config();
 
 function mapOrderItemErrorToHttp(calcErr) {
@@ -18,19 +20,8 @@ function mapOrderItemErrorToHttp(calcErr) {
   return { status, message };
 }
 
-function sendServerError(res, error, message = "Server error") {
-  return res.status(500).json({
-    success: false,
-    message,
-    error: error?.message,
-  });
-}
-
-function sendStatsError(res, error, message) {
-  return sendServerError(res, error, message);
-}
-function sendOrderReadError(res, error, message) {
-  return sendServerError(res, error, message);
+function throwHttp(status, message, code) {
+  throw new HttpError(status, message, code);
 }
 const findOwnedOrder = async (orderID, requesterId) => {
   const order = await Order.findById(orderID);
@@ -60,26 +51,21 @@ const createOrder = asyncHandler(async (req, res) => {
     const requesterRole = req.user?.role;
 
     if (!products || !address || !orderBy) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
+      throwHttp(400, "Missing required fields", ERROR_CODES.VALIDATION);
     }
 
     if (requesterRole !== "Admin" && requesterId !== String(orderBy)) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not allowed to create order for another user",
-      });
+      throwHttp(
+        403,
+        "You are not allowed to create order for another user",
+        ERROR_CODES.FORBIDDEN
+      );
     }
 
     const { error: lineErr, normalized: lineItems } =
       orderService.normalizeOrderLineItems(products);
     if (lineErr) {
-      return res.status(400).json({
-        success: false,
-        message: lineErr,
-      });
+      throwHttp(400, lineErr, ERROR_CODES.VALIDATION);
     }
 
     let totalPrice = 0;
@@ -87,7 +73,11 @@ const createOrder = asyncHandler(async (req, res) => {
       totalPrice = await orderService.returnTotalPrice({ products: lineItems });
     } catch (calcErr) {
       const { status, message } = mapOrderItemErrorToHttp(calcErr);
-      return res.status(status).json({ success: false, message });
+      throwHttp(
+        status,
+        message,
+        status === 404 ? ERROR_CODES.NOT_FOUND : ERROR_CODES.VALIDATION
+      );
     }
 
     const couponResult = await orderService.applyCouponForUser({
@@ -96,9 +86,11 @@ const createOrder = asyncHandler(async (req, res) => {
       totalPrice,
     });
     if (couponResult.error) {
-      return res
-        .status(couponResult.status)
-        .json({ success: false, message: couponResult.error });
+      throwHttp(
+        couponResult.status,
+        couponResult.error,
+        couponResult.status === 404 ? ERROR_CODES.NOT_FOUND : ERROR_CODES.VALIDATION
+      );
     }
     totalPrice = couponResult.totalPrice;
 
@@ -116,10 +108,7 @@ const createOrder = asyncHandler(async (req, res) => {
     });
 
     if (!newOrder) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to create order",
-      });
+      throwHttp(500, "Failed to create order", ERROR_CODES.INTERNAL);
     }
 
     try {
@@ -128,11 +117,11 @@ const createOrder = asyncHandler(async (req, res) => {
     } catch (invErr) {
       await Order.findByIdAndDelete(newOrder._id);
       console.error("createOrder finalize error:", invErr?.message || invErr);
-      return res.status(500).json({
-        success: false,
-        message:
-          "Không thể hoàn tất đơn hàng (cập nhật kho hoặc giỏ). Đơn tạm đã được hủy.",
-      });
+      throwHttp(
+        500,
+        "Không thể hoàn tất đơn hàng (cập nhật kho hoặc giỏ). Đơn tạm đã được hủy.",
+        ERROR_CODES.INTERNAL
+      );
     }
 
     const user = await User.findById(orderBy);
@@ -144,11 +133,9 @@ const createOrder = asyncHandler(async (req, res) => {
       data: newOrder,
     });
   } catch (error) {
+    if (error instanceof HttpError) throw error;
     console.error("createOrder error:", error?.message || error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    throwHttp(500, "Internal server error", ERROR_CODES.INTERNAL);
   }
 });
 const getAllOrders = asyncHandler(async (req, res) => {
@@ -156,10 +143,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
     const orders = await orderReadService.getAllOrdersWithUser();
 
     if (!orders) {
-      return res.status(404).json({
-        success: false,
-        message: "No orders found",
-      });
+      throwHttp(404, "No orders found", ERROR_CODES.NOT_FOUND);
     }
 
     return res.status(200).json({
@@ -167,7 +151,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
       data: orders,
     });
   } catch (error) {
-    return sendOrderReadError(res, error, "Error retrieving orders");
+    throwHttp(500, "Error retrieving orders", ERROR_CODES.INTERNAL);
   }
 });
 const deleteOrder = asyncHandler(async (req, res) => {
@@ -177,10 +161,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
     const order = await Order.findByIdAndDelete(orderID);
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
+      throwHttp(404, "Order not found", ERROR_CODES.NOT_FOUND);
     }
 
     return res.status(200).json({
@@ -188,11 +169,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
       message: "Order deleted successfully",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error deleting order",
-      error: error.message,
-    });
+    throwHttp(500, "Error deleting order", ERROR_CODES.INTERNAL);
   }
 });
 const getOneOrder = asyncHandler(async (req, res) => {
@@ -202,10 +179,7 @@ const getOneOrder = asyncHandler(async (req, res) => {
     const orders = await orderReadService.getOrderByIdWithRelations(orderID);
 
     if (!orders) {
-      return res.status(404).json({
-        success: false,
-        message: "No order found",
-      });
+      throwHttp(404, "No order found", ERROR_CODES.NOT_FOUND);
     }
 
     const data = await enrichOrderDoc(orders);
@@ -214,7 +188,7 @@ const getOneOrder = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return sendOrderReadError(res, error, "Error retrieving orders");
+    throwHttp(500, "Error retrieving orders", ERROR_CODES.INTERNAL);
   }
 });
 const getUserOrder = asyncHandler(async (req, res) => {
@@ -224,19 +198,13 @@ const getUserOrder = asyncHandler(async (req, res) => {
 
   try {
     if (requesterRole !== "Admin" && requesterId !== String(userID)) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
+      throwHttp(403, "Forbidden", ERROR_CODES.FORBIDDEN);
     }
 
     const orders = await orderReadService.getOrdersByUserWithRelations(userID);
 
     if (!orders) {
-      return res.status(404).json({
-        success: false,
-        message: "No order found",
-      });
+      throwHttp(404, "No order found", ERROR_CODES.NOT_FOUND);
     }
 
     const viewerForRating =
@@ -249,7 +217,7 @@ const getUserOrder = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return sendOrderReadError(res, error, "Error retrieving orders");
+    throwHttp(500, "Error retrieving orders", ERROR_CODES.INTERNAL);
   }
 });
 const updateStatusOrder = asyncHandler(async (req, res) => {
@@ -257,10 +225,7 @@ const updateStatusOrder = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const validStatuses = ["Processing", "Shipping", "Success", "Cancelled"];
   if (!validStatuses.includes(String(status))) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid status",
-    });
+    throwHttp(400, "Invalid status", ERROR_CODES.VALIDATION);
   }
 
   const response = await Order.findByIdAndUpdate(
@@ -309,17 +274,19 @@ const confirmOrderReceivedByUser = asyncHandler(async (req, res) => {
 
   const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
   if (ownedErr) {
-    return res.status(ownedErr.status).json({
-      success: false,
-      message: ownedErr.message,
-    });
+    throwHttp(
+      ownedErr.status,
+      ownedErr.message,
+      ownedErr.status === 403 ? ERROR_CODES.FORBIDDEN : ERROR_CODES.NOT_FOUND
+    );
   }
 
   if (order.status !== "Shipping") {
-    return res.status(400).json({
-      success: false,
-      message: "Chỉ đơn đang giao mới xác nhận nhận hàng được",
-    });
+    throwHttp(
+      400,
+      "Chỉ đơn đang giao mới xác nhận nhận hàng được",
+      ERROR_CODES.VALIDATION
+    );
   }
 
   order.status = "Success";
@@ -339,17 +306,15 @@ const cancelOrderByUser = asyncHandler(async (req, res) => {
 
   const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
   if (ownedErr) {
-    return res.status(ownedErr.status).json({
-      success: false,
-      message: ownedErr.message,
-    });
+    throwHttp(
+      ownedErr.status,
+      ownedErr.message,
+      ownedErr.status === 403 ? ERROR_CODES.FORBIDDEN : ERROR_CODES.NOT_FOUND
+    );
   }
 
   if (order.status !== "Processing") {
-    return res.status(400).json({
-      success: false,
-      message: "Chỉ đơn đang xử lý mới được hủy",
-    });
+    throwHttp(400, "Chỉ đơn đang xử lý mới được hủy", ERROR_CODES.VALIDATION);
   }
 
   const products = (order.products || []).filter((item) => item?.id && item?.count);
@@ -374,20 +339,14 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
     const order = await orderReadService.getOrderByIdWithRelations(orderID);
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "No order found",
-      });
+      throwHttp(404, "No order found", ERROR_CODES.NOT_FOUND);
     }
 
     if (
       requesterRole !== "Admin" &&
       String(order.OrderBy?._id || order.OrderBy) !== requesterId
     ) {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
+      throwHttp(403, "Forbidden", ERROR_CODES.FORBIDDEN);
     }
 
     const viewerForRating =
@@ -398,7 +357,7 @@ const getOneOrderByUser = asyncHandler(async (req, res) => {
       data,
     });
   } catch (error) {
-    return sendOrderReadError(res, error, "Error retrieving order");
+    throwHttp(500, "Error retrieving order", ERROR_CODES.INTERNAL);
   }
 });
 
@@ -408,20 +367,26 @@ const requestAfterSalesByUser = asyncHandler(async (req, res) => {
   const { type, reason } = req.body || {};
 
   if (!["Return", "Refund", "Complaint"].includes(type)) {
-    return res.status(400).json({ success: false, message: "Invalid after-sales type" });
+    throwHttp(400, "Invalid after-sales type", ERROR_CODES.VALIDATION);
   }
   if (!reason || String(reason).trim().length < 5) {
-    return res.status(400).json({ success: false, message: "Reason is required" });
+    throwHttp(400, "Reason is required", ERROR_CODES.VALIDATION);
   }
 
   const { error: ownedErr, order } = await findOwnedOrder(orderID, requesterId);
   if (ownedErr) {
-    return res.status(ownedErr.status).json({ success: false, message: ownedErr.message });
+    throwHttp(
+      ownedErr.status,
+      ownedErr.message,
+      ownedErr.status === 403 ? ERROR_CODES.FORBIDDEN : ERROR_CODES.NOT_FOUND
+    );
   }
   if (order.status !== "Success") {
-    return res
-      .status(400)
-      .json({ success: false, message: "Only completed orders can request after-sales" });
+    throwHttp(
+      400,
+      "Only completed orders can request after-sales",
+      ERROR_CODES.VALIDATION
+    );
   }
 
   order.afterSales = {
@@ -453,11 +418,11 @@ const updateAfterSalesRequest = asyncHandler(async (req, res) => {
   const { orderID } = req.params;
   const { status, note } = req.body || {};
   if (!["Approved", "Rejected", "Pending"].includes(status)) {
-    return res.status(400).json({ success: false, message: "Invalid after-sales status" });
+    throwHttp(400, "Invalid after-sales status", ERROR_CODES.VALIDATION);
   }
   const order = await Order.findById(orderID);
   if (!order || !order.afterSales?.requested) {
-    return res.status(404).json({ success: false, message: "After-sales request not found" });
+    throwHttp(404, "After-sales request not found", ERROR_CODES.NOT_FOUND);
   }
   order.afterSales.status = status;
   order.afterSales.note = note || "";
@@ -482,19 +447,17 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
     const requesterRole = req.user?.role;
 
     if (requesterRole !== "Admin" && requesterId !== String(orderBy)) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not allowed to create payment URL for another user",
-      });
+      throwHttp(
+        403,
+        "You are not allowed to create payment URL for another user",
+        ERROR_CODES.FORBIDDEN
+      );
     }
 
     const { error: payLineErr, normalized: payLineItems } =
       orderService.normalizeOrderLineItems(products);
     if (payLineErr) {
-      return res.status(400).json({
-        success: false,
-        message: payLineErr,
-      });
+      throwHttp(400, payLineErr, ERROR_CODES.VALIDATION);
     }
 
     const priceTotal = await orderService.returnTotalPrice({
@@ -527,7 +490,7 @@ const handlePaymentUrl = asyncHandler(async (req, res) => {
 
     return res.status(200).json({ success: true, paymentUrl });
   } catch (error) {
-    return sendServerError(res, error, "Error");
+    throwHttp(500, "Error", ERROR_CODES.INTERNAL);
   }
 });
 const handleVnPayReturn = asyncHandler(async (req, res) => {
@@ -584,12 +547,10 @@ const handleVnPayReturn = asyncHandler(async (req, res) => {
         }),
       );
     } else {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid signature" });
+      throwHttp(400, "Invalid signature", ERROR_CODES.VALIDATION);
     }
   } catch (error) {
-    return sendServerError(res, error, "Server error");
+    throwHttp(500, "Server error", ERROR_CODES.INTERNAL);
   }
 });
 const handleMoMoPay = asyncHandler(async (req, res) => {
@@ -644,50 +605,52 @@ const handleMoMoPay = asyncHandler(async (req, res) => {
     if (data && data.payUrl) {
       return res.status(200).json({ success: true, payUrl: data.payUrl });
     } else {
-      return res
-        .status(500)
-        .json({ success: false, message: "Failed to create MoMo payment URL" });
+      throwHttp(500, "Failed to create MoMo payment URL", ERROR_CODES.INTERNAL);
     }
   } catch (error) {
-    return sendServerError(res, error, "Server error");
+    throwHttp(500, "Server error", ERROR_CODES.INTERNAL);
   }
 });
 const totalPriceOrder = asyncHandler(async (req, res) => {
   try {
     const stats = await orderStatsService.calculateTotalPriceAllOrders();
     if (!stats.found) {
-      return res.status(404).json({
-        success: false,
-        message: "No orders found",
-      });
+      throwHttp(404, "No orders found", ERROR_CODES.NOT_FOUND);
     }
 
     res.status(200).json({
       success: true,
       message: "Total price for all orders calculated successfully",
+      data: { totalPrice: stats.totalPrice },
       totalPrice: stats.totalPrice,
     });
   } catch (error) {
-    return sendStatsError(res, error, "Error calculating total price for all orders");
+    throwHttp(
+      500,
+      "Error calculating total price for all orders",
+      ERROR_CODES.INTERNAL
+    );
   }
 });
 const mostPurchasedProduct = asyncHandler(async (req, res) => {
   try {
     const topProducts = await orderStatsService.getMostPurchasedProducts(7);
     if (topProducts.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No products found in orders within the last 7 days.",
-      });
+      throwHttp(
+        404,
+        "No products found in orders within the last 7 days.",
+        ERROR_CODES.NOT_FOUND
+      );
     }
 
     res.status(200).json({
       success: true,
       message: "Top purchased products in the last 7 days fetched successfully",
+      data: topProducts,
       products: topProducts,
     });
   } catch (error) {
-    return sendStatsError(res, error, "Error fetching top purchased products");
+    throwHttp(500, "Error fetching top purchased products", ERROR_CODES.INTERNAL);
   }
 });
 
@@ -702,7 +665,7 @@ const totalSalesByMonth = asyncHandler(async (req, res) => {
       data: formattedData,
     });
   } catch (error) {
-    return sendStatsError(res, error, "Error fetching total sales by month");
+    throwHttp(500, "Error fetching total sales by month", ERROR_CODES.INTERNAL);
   }
 });
 
@@ -716,7 +679,7 @@ const topUsersByOrders = asyncHandler(async (req, res) => {
       data: topUsers,
     });
   } catch (error) {
-    return sendStatsError(res, error, "Error fetching top users");
+    throwHttp(500, "Error fetching top users", ERROR_CODES.INTERNAL);
   }
 });
 

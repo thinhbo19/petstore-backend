@@ -18,6 +18,7 @@ const getRoles = asyncHandler(async (_req, res) => {
 
   return res.status(200).json({
     success: true,
+    data: roles,
     roles,
   });
 });
@@ -44,11 +45,7 @@ const getPermissionsByRole = asyncHandler(async (req, res) => {
 
   const total = permissions.length;
   const pagedPermissions = permissions.slice(skip, skip + limit);
-
-  return res.status(200).json({
-    success: true,
-    role,
-    data: pagedPermissions,
+  const permissionData = {
     permissions: pagedPermissions,
     dashboardAccess: Boolean(roleDoc?.dashboardAccess || role === "Admin"),
     dashboardMenus:
@@ -57,6 +54,15 @@ const getPermissionsByRole = asyncHandler(async (req, res) => {
         : role === "Admin"
           ? ALL_DASHBOARD_MENUS
           : [],
+  };
+
+  return res.status(200).json({
+    success: true,
+    role,
+    data: permissionData,
+    permissions: pagedPermissions,
+    dashboardAccess: permissionData.dashboardAccess,
+    dashboardMenus: permissionData.dashboardMenus,
     pagination: {
       page,
       limit,
@@ -171,6 +177,7 @@ const updatePermissionsByRole = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     role,
+    data: updated.permissions || [],
     permissions: updated.permissions || [],
     dashboardAccess: Boolean(updated.dashboardAccess || role === "Admin"),
     dashboardMenus: updated.dashboardMenus || [],
@@ -183,6 +190,11 @@ const getMyDashboardAccess = asyncHandler(async (req, res) => {
   if (!role) {
     return res.status(200).json({
       success: true,
+      data: {
+        role: "",
+        dashboardAccess: false,
+        dashboardMenus: [],
+      },
       role: "",
       dashboardAccess: false,
       dashboardMenus: [],
@@ -192,6 +204,11 @@ const getMyDashboardAccess = asyncHandler(async (req, res) => {
   if (role === "Admin") {
     return res.status(200).json({
       success: true,
+      data: {
+        role,
+        dashboardAccess: true,
+        dashboardMenus: ALL_DASHBOARD_MENUS,
+      },
       role,
       dashboardAccess: true,
       dashboardMenus: ALL_DASHBOARD_MENUS,
@@ -201,6 +218,11 @@ const getMyDashboardAccess = asyncHandler(async (req, res) => {
   const roleDoc = await RolePermission.findOne({ role }).lean();
   return res.status(200).json({
     success: true,
+    data: {
+      role,
+      dashboardAccess: Boolean(roleDoc?.dashboardAccess),
+      dashboardMenus: Array.isArray(roleDoc?.dashboardMenus) ? roleDoc.dashboardMenus : [],
+    },
     role,
     dashboardAccess: Boolean(roleDoc?.dashboardAccess),
     dashboardMenus: Array.isArray(roleDoc?.dashboardMenus) ? roleDoc.dashboardMenus : [],
