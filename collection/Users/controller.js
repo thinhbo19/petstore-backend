@@ -17,22 +17,23 @@ const { ERROR_CODES } = require("../../utils/apiResponse");
 const { HttpError } = require("../../utils/httpError");
 
 const sameSitePolicy = process.env.NODE_ENV === "production" ? "none" : "lax";
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-const refreshCookieOptions = {
+const buildRefreshCookieOptions = (rememberMe = false) => ({
   httpOnly: true,
   sameSite: sameSitePolicy,
   secure: process.env.NODE_ENV === "production",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
-const csrfCookieOptions = {
+  maxAge: (rememberMe ? 5 : 1) * ONE_DAY_MS,
+});
+const buildCsrfCookieOptions = (rememberMe = false) => ({
   httpOnly: false,
   sameSite: sameSitePolicy,
   secure: process.env.NODE_ENV === "production",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
-const issueCsrfToken = (res) => {
+  maxAge: (rememberMe ? 5 : 1) * ONE_DAY_MS,
+});
+const issueCsrfToken = (res, rememberMe = false) => {
   const csrfToken = crypto.randomBytes(24).toString("hex");
-  res.cookie("csrfToken", csrfToken, csrfCookieOptions);
+  res.cookie("csrfToken", csrfToken, buildCsrfCookieOptions(rememberMe));
   return csrfToken;
 };
 
@@ -308,7 +309,7 @@ const resendOTP = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
 
   if (!email) {
     throw new HttpError(400, "Missing Email", ERROR_CODES.VALIDATION);
@@ -337,8 +338,13 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const userData = buildUserData(user);
-  const accessToken = generateAccessToken(user._id, user.role);
-  const newRefreshToken = generateRefreshToken(user._id);
+  const shouldRemember = Boolean(rememberMe);
+  const accessToken = generateAccessToken(
+    user._id,
+    user.role,
+    shouldRemember ? "5d" : "1d",
+  );
+  const newRefreshToken = generateRefreshToken(user._id, shouldRemember);
 
   await User.findByIdAndUpdate(
     user._id,
@@ -346,8 +352,12 @@ const login = asyncHandler(async (req, res) => {
     { new: true },
   );
 
-  res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
-  const csrfToken = issueCsrfToken(res);
+  res.cookie(
+    "refreshToken",
+    newRefreshToken,
+    buildRefreshCookieOptions(shouldRemember),
+  );
+  const csrfToken = issueCsrfToken(res, shouldRemember);
   const url = getRedirectUrlByRole(userData.role);
 
   return res.status(200).json({
@@ -369,14 +379,14 @@ const logout = asyncHandler(async (req, res) => {
     );
   }
   res.clearCookie("refreshToken", {
-    httpOnly: refreshCookieOptions.httpOnly,
-    sameSite: refreshCookieOptions.sameSite,
-    secure: refreshCookieOptions.secure,
+    httpOnly: true,
+    sameSite: sameSitePolicy,
+    secure: process.env.NODE_ENV === "production",
   });
   res.clearCookie("csrfToken", {
-    httpOnly: csrfCookieOptions.httpOnly,
-    sameSite: csrfCookieOptions.sameSite,
-    secure: csrfCookieOptions.secure,
+    httpOnly: false,
+    sameSite: sameSitePolicy,
+    secure: process.env.NODE_ENV === "production",
   });
   return res.status(200).json({
     success: true,
@@ -497,8 +507,13 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 
   const userData = buildUserData(response);
-  const newAccessToken = generateAccessToken(response._id, response.role);
-  const csrfToken = issueCsrfToken(res);
+  const shouldRemember = Boolean(decoded.rememberMe);
+  const newAccessToken = generateAccessToken(
+    response._id,
+    response.role,
+    shouldRemember ? "5d" : "1d",
+  );
+  const csrfToken = issueCsrfToken(res, shouldRemember);
 
   return res.status(200).json({
     success: true,
