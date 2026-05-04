@@ -3,6 +3,12 @@ const asyncHandler = require("express-async-handler");
 const Pets = require("./model");
 const PetBreed = require("../PetBreed/model");
 const petRatingService = require("../../service/petRatingService");
+const {
+  buildCacheKey,
+  getCache,
+  setCache,
+  invalidateNamespace,
+} = require("../../utils/cacheStore");
 const { ERROR_CODES } = require("../../utils/apiResponse");
 const { HttpError } = require("../../utils/httpError");
 
@@ -57,6 +63,7 @@ const createNewPets = asyncHandler(async (req, res) => {
     characteristic,
   });
   await newPet.save();
+  await invalidateNamespace("pets:list");
   return res.status(201).json({ success: true, newPet });
 });
 
@@ -162,6 +169,12 @@ const PET_SELECT_FIELDS = [
 ];
 
 const getAllPets = asyncHandler(async (req, res) => {
+  const cacheKey = buildCacheKey("pets:list", JSON.stringify(req.query || {}));
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return res.status(200).json(cached);
+  }
+
   const { page, limit, skip } = getPagination(req.query);
   const sort = getSort(req.query, ["namePet", "price", "createdAt"], "createdAt");
   const select = getFields(req.query, PET_SELECT_FIELDS);
@@ -169,7 +182,7 @@ const getAllPets = asyncHandler(async (req, res) => {
     Pets.find().select(select).sort(sort).skip(skip).limit(limit),
     Pets.countDocuments({}),
   ]);
-  return res.status(200).json({
+  const payload = {
     success: true,
     data: allPets,
     pets: allPets,
@@ -179,7 +192,9 @@ const getAllPets = asyncHandler(async (req, res) => {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
-  });
+  };
+  await setCache(cacheKey, payload, 90);
+  return res.status(200).json(payload);
 });
 
 /**
@@ -265,6 +280,7 @@ const deletePet = asyncHandler(async (req, res) => {
     throw new HttpError(400, "Missing Id", ERROR_CODES.VALIDATION);
   }
   const pets = await Pets.findByIdAndDelete(pid);
+  await invalidateNamespace("pets:list");
   return res.status(200).json({
     success: Boolean(pets),
     deletePets: pets ? "Successfully" : "No pet is deleted",
@@ -311,6 +327,7 @@ const changePets = asyncHandler(async (req, res) => {
     },
     { new: true }
   );
+  await invalidateNamespace("pets:list");
 
   return res.status(200).json({
     success: true,

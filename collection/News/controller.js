@@ -7,6 +7,12 @@ const {
   getSort,
   getFields,
 } = require("../../utils/queryHelpers");
+const {
+  buildCacheKey,
+  getCache,
+  setCache,
+  invalidateNamespace,
+} = require("../../utils/cacheStore");
 const { HttpError } = require("../../utils/httpError");
 const { ERROR_CODES } = require("../../utils/apiResponse");
 
@@ -28,10 +34,17 @@ const createNews = asyncHandler(async (req, res) => {
     image,
   });
   await newNews.save();
+  await invalidateNamespace("news:list");
   return res.status(201).json({ success: true, data: newNews, newNews });
 });
 
 const getAllNews = asyncHandler(async (req, res) => {
+  const cacheKey = buildCacheKey("news:list", JSON.stringify(req.query || {}));
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return res.status(200).json(cached);
+  }
+
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const { page, limit, skip } = getPagination(req.query);
   const sort = getSort(
@@ -62,7 +75,7 @@ const getAllNews = asyncHandler(async (req, res) => {
     News.find(filter).select(select).sort(sort).skip(skip).limit(limit),
     News.countDocuments(filter),
   ]);
-  return res.status(200).json({
+  const payload = {
     success: true,
     data: news,
     news,
@@ -72,7 +85,9 @@ const getAllNews = asyncHandler(async (req, res) => {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
-  });
+  };
+  await setCache(cacheKey, payload, 90);
+  return res.status(200).json(payload);
 });
 
 const getCurrentNews = asyncHandler(async (req, res) => {
@@ -96,6 +111,7 @@ const deleteNews = asyncHandler(async (req, res) => {
     throw new HttpError(404, "News not found", ERROR_CODES.NOT_FOUND);
   }
   await News.findByIdAndDelete(nid);
+  await invalidateNamespace("news:list");
   return res
     .status(200)
     .json({ success: true, message: "Delete successfully" });
@@ -142,6 +158,7 @@ const changeNews = asyncHandler(async (req, res) => {
   if (!update) {
     throw new HttpError(404, "Can not find!!!", ERROR_CODES.NOT_FOUND);
   }
+  await invalidateNamespace("news:list");
   return res.status(200).json({
     success: true,
     data: update,

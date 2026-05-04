@@ -9,6 +9,12 @@ const {
   getSort,
   getFields,
 } = require("../../utils/queryHelpers");
+const {
+  buildCacheKey,
+  getCache,
+  setCache,
+  invalidateNamespace,
+} = require("../../utils/cacheStore");
 const { ERROR_CODES } = require("../../utils/apiResponse");
 const { HttpError } = require("../../utils/httpError");
 
@@ -75,6 +81,7 @@ const createProduct = asyncHandler(async (req, res) => {
   });
 
   await newProduct.save();
+  await invalidateNamespace("products:list");
 
   return res.status(200).json({
     success: true,
@@ -84,6 +91,12 @@ const createProduct = asyncHandler(async (req, res) => {
 });
 
 const getAllProduct = asyncHandler(async (req, res) => {
+  const cacheKey = buildCacheKey("products:list", JSON.stringify(req.query || {}));
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return res.status(200).json(cached);
+  }
+
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const { page, limit, skip } = getPagination(req.query);
   const sort = getSort(req.query, ["nameProduct", "price", "createdAt"], "nameProduct");
@@ -118,7 +131,7 @@ const getAllProduct = asyncHandler(async (req, res) => {
     Product.find(filter).select(select).sort(sort).skip(skip).limit(limit),
     Product.countDocuments(filter),
   ]);
-  return res.status(200).json({
+  const payload = {
     success: true,
     data: product,
     product,
@@ -128,7 +141,9 @@ const getAllProduct = asyncHandler(async (req, res) => {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
-  });
+  };
+  await setCache(cacheKey, payload, 90);
+  return res.status(200).json(payload);
 });
 
 /**
@@ -272,6 +287,7 @@ const changeProduct = asyncHandler(async (req, res) => {
   if (!update) {
     throw new HttpError(404, "Không tìm thấy sản phẩm.", ERROR_CODES.NOT_FOUND);
   }
+  await invalidateNamespace("products:list");
   return res.status(200).json({
     success: true,
     message: update,
@@ -285,6 +301,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 
   const product = await Product.findByIdAndDelete(productId);
+  await invalidateNamespace("products:list");
   return res.status(200).json({
     success: product ? true : false,
     delete: product ? "Successfully" : "No product is deleted",
