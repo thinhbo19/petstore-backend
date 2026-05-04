@@ -4,6 +4,17 @@ const Pet = require("../Pets/model");
 const Product = require("../Product/model");
 const { generateSlug } = require("../../service/slugifyConfig");
 
+const normalizeFavoriteTime = (item) => {
+  const raw = item?.createdAt || item?.createAt;
+  const time = raw ? new Date(raw).getTime() : 0;
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const orderFavorites = (favorites) =>
+  [...(favorites || [])].sort(
+    (a, b) => normalizeFavoriteTime(b) - normalizeFavoriteTime(a),
+  );
+
 const addFavorite = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { pid } = req.body;
@@ -22,8 +33,10 @@ const addFavorite = asyncHandler(async (req, res) => {
     if (existingPetIndex !== -1) {
       user.favorites.splice(existingPetIndex, 1);
       await user.save();
+      const orderedFavorites = orderFavorites(user.favorites);
       return res.status(200).json({
-        data: user.favorites,
+        data: orderedFavorites,
+        favorites: orderedFavorites,
         message:
           "The pet has been successfully removed from your favorite list",
       });
@@ -62,9 +75,11 @@ const addFavorite = asyncHandler(async (req, res) => {
     }
 
     await user.save();
+    const orderedFavorites = orderFavorites(user.favorites);
     return res.status(201).json({
       message: "The item has been added to your favorite list",
-      data: user.favorites,
+      data: orderedFavorites,
+      favorites: orderedFavorites,
     });
   } catch (error) {
     console.error("Error while adding favorite item:", error);
@@ -84,10 +99,7 @@ const getFavorites = asyncHandler(async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const allFavorites = user.favorites;
-    allFavorites.sort((a, b) => b.createdAt - a.createdAt);
-
-    const orderedFavorites = [...allFavorites].reverse();
+    const orderedFavorites = orderFavorites(user.favorites);
     return res.status(200).json({
       success: true,
       data: orderedFavorites,
