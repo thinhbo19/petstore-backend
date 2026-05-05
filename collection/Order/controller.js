@@ -7,7 +7,6 @@ const orderFinalizeService = require("../../service/orderFinalizeService");
 const orderStatsService = require("../../service/orderStatsService");
 const orderReadService = require("../../service/orderReadService");
 const asyncHandler = require("express-async-handler");
-const crypto = require("crypto");
 const { enrichOrderDoc } = require("../../utils/enrichOrderProducts");
 const { normalizeId } = require("../../utils/idUtils");
 const { ERROR_CODES } = require("../../utils/apiResponse");
@@ -22,6 +21,104 @@ function mapOrderItemErrorToHttp(calcErr) {
 
 function throwHttp(status, message, code) {
   throw new HttpError(status, message, code);
+}
+
+async function processMoMoPaymentCallback({ params, res, isIpn }) {
+  if (!orderPaymentService.verifyMomoCallbackSignature(params)) {
+    if (isIpn) {
+      return res.status(400).json({ message: "Invalid signature" });
+    }
+    return res.redirect(
+      orderPaymentService.buildCheckoutResultUrl({
+        kind: "order",
+        status: "failed",
+        reason: "invalid_signature",
+      }),
+    );
+  }
+
+  const orderId = String(params.orderId);
+  const session = await PaymentSession.findOne({ txnRef: orderId, kind: "order" });
+
+  if (!session) {
+    if (isIpn) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+    return res.redirect(orderPaymentService.getSessionNotFoundRedirectUrl("order"));
+  }
+
+  const ok = String(params.resultCode) === "0";
+  const expectedAmount = String(Math.round(Number(session.payload.totalPrice)));
+  const paidAmount = String(params.amount);
+
+  if (!ok) {
+    const redirectTo = await orderPaymentService.failPaymentSessionAndBuildRedirect({
+      session,
+      kind: "order",
+      reason: "payment_declined",
+    });
+    if (isIpn) {
+      return res.status(200).json({ resultCode: 0, message: "Success" });
+    }
+    return res.redirect(redirectTo);
+  }
+
+  if (paidAmount !== expectedAmount) {
+    const redirectTo = await orderPaymentService.failPaymentSessionAndBuildRedirect({
+      session,
+      kind: "order",
+      reason: "amount_mismatch",
+    });
+    if (isIpn) {
+      return res.status(200).json({ resultCode: 0, message: "Success" });
+    }
+    return res.redirect(redirectTo);
+  }
+
+  if (session.status === "success" && session.redirectTo) {
+    if (isIpn) {
+      return res.status(200).json({ resultCode: 0, message: "Success" });
+    }
+    return res.redirect(session.redirectTo);
+  }
+
+  try {
+    const message = await orderService.createOrderService({
+      ...session.payload,
+    });
+
+    if (message) {
+      const userId = message.OrderBy;
+      const user = await orderFinalizeService.removeExactPurchasedItemsFromCart({
+        userId,
+        purchasedProducts: message.products || [],
+      });
+      await orderFinalizeService.sendOrderConfirmationEmailSafe({ user, order: message });
+
+      const redirectTo = await orderPaymentService.succeedPaymentSessionAndBuildRedirect({
+        session,
+        kind: "order",
+        idKey: "orderId",
+        idValue: message._id,
+      });
+      if (isIpn) {
+        return res.status(200).json({ resultCode: 0, message: "Success" });
+      }
+      return res.redirect(redirectTo);
+    }
+  } catch (e) {
+    console.error("MoMo finalize order error:", e?.message || e);
+  }
+
+  const failUrl = orderPaymentService.buildCheckoutResultUrl({
+    kind: "order",
+    status: "failed",
+    reason: "create_order_failed",
+  });
+  if (isIpn) {
+    return res.status(200).json({ resultCode: 0, message: "Success" });
+  }
+  return res.redirect(failUrl);
 }
 const findOwnedOrder = async (orderID, requesterId) => {
   const order = await Order.findById(orderID);
@@ -558,57 +655,154 @@ const handleMoMoPay = asyncHandler(async (req, res) => {
     const partnerCode = process.env.MOMO_PARTNER_CODE;
     const accessKey = process.env.MOMO_ACCESS_KEY;
     const secretKey = process.env.MOMO_SECRET_KEY;
-    const redirectUrl = process.env.MOMO_REDIRECT_URL;
-    const returnUrl = process.env.MOMOPAY_RETURNURL;
+    if (!partnerCode || !accessKey || !secretKey) {
+      throwHttp(500, "MoMo is not configured", ERROR_CODES.INTERNAL);
+    }
 
-    const orderId = new Date().getTime();
-    const requestId = partnerCode + orderId;
-    const amount = "5000";
-    const orderInfo = "Thanh Toán Qua Ví MOMO";
+    const {
+      orderBy,
+      products,
+      coupon,
+      note,
+      address,
+      paymentMethod,
+      receiverName,
+      receiverPhone,
+    } = req.body;
+    const requesterId = String(req.user?._id || "");
+    const requesterRole = req.user?.role;
+
+    if (requesterRole !== "Admin" && requesterId !== String(orderBy)) {
+      throwHttp(
+        403,
+        "You are not allowed to create payment URL for another user",
+        ERROR_CODES.FORBIDDEN,
+      );
+    }
+
+    const { error: payLineErr, normalized: payLineItems } =
+      orderService.normalizeOrderLineItems(products);
+    if (payLineErr) {
+      throwHttp(400, payLineErr, ERROR_CODES.VALIDATION);
+    }
+
+    let priceTotal = await orderService.returnTotalPrice({
+      products: payLineItems,
+    });
+    const couponResult = await orderService.applyCouponForUser({
+      orderBy,
+      coupon: coupon || null,
+      totalPrice: priceTotal,
+    });
+    if (couponResult.error) {
+      throwHttp(
+        couponResult.status,
+        couponResult.error,
+        couponResult.status === 404 ? ERROR_CODES.NOT_FOUND : ERROR_CODES.VALIDATION,
+      );
+    }
+    priceTotal = couponResult.totalPrice;
+    const amountStr = String(Math.max(0, Math.round(Number(priceTotal))));
+
+    const serverBase = (process.env.URL_SERVER || "").replace(/\/$/, "");
+    const redirectUrl =
+      process.env.MOMOPAY_RETURNURL ||
+      `${serverBase}/api/order/momo/momo_return`;
+    const ipnUrl =
+      process.env.MOMO_IPN_URL || `${serverBase}/api/order/momo/momo_ipn`;
+
+    const orderId = `M${Date.now()}${Math.floor(Math.random() * 1e9)}`.slice(0, 48);
+    const requestId = `${partnerCode}${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+    const orderInfo = "Thanh toan don hang PetStore qua MoMo";
     const extraData = "";
 
-    const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${returnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=captureWallet`;
+    const signature = orderPaymentService.signMoMoCreateRequest(
+      {
+        accessKey,
+        amount: amountStr,
+        extraData,
+        ipnUrl,
+        orderId,
+        orderInfo,
+        partnerCode,
+        redirectUrl,
+        requestId,
+      },
+      secretKey,
+    );
 
-    const signature = crypto
-      .createHmac("sha256", secretKey)
-      .update(rawSignature)
-      .digest("hex");
+    const momoApiUrl =
+      process.env.MOMO_API_URL || "https://test-payment.momo.vn/v2/gateway/api/create";
 
     const requestBody = JSON.stringify({
       partnerCode,
       accessKey,
       requestId,
-      amount,
+      amount: amountStr,
       orderId,
       orderInfo,
       redirectUrl,
-      ipnUrl: returnUrl,
+      ipnUrl,
       extraData,
       requestType: "captureWallet",
       signature,
-      lang: "en",
+      lang: "vi",
     });
 
-    const response = await fetch(
-      "https://test-payment.momo.vn/v2/gateway/api/create",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: requestBody,
-      }
-    );
+    const response = await fetch(momoApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: requestBody,
+    });
 
     const data = await response.json();
 
-    if (data && data.payUrl) {
+    if (data?.payUrl) {
+      await PaymentSession.create({
+        txnRef: orderId,
+        kind: "order",
+        payload: {
+          orderBy,
+          coupon: coupon || null,
+          note: note || "",
+          address,
+          receiverName: receiverName || "",
+          receiverPhone: receiverPhone || "",
+          status: "Processing",
+          paymentMethod: "MoMo",
+          totalPrice: Math.round(Number(priceTotal)),
+          products: payLineItems,
+        },
+      });
       return res.status(200).json({ success: true, payUrl: data.payUrl });
-    } else {
-      throwHttp(500, "Failed to create MoMo payment URL", ERROR_CODES.INTERNAL);
     }
+
+    throwHttp(
+      500,
+      data?.message || "Failed to create MoMo payment URL",
+      ERROR_CODES.INTERNAL,
+    );
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    throwHttp(500, "Server error", ERROR_CODES.INTERNAL);
+  }
+});
+
+const handleMoMoReturn = asyncHandler(async (req, res) => {
+  try {
+    return await processMoMoPaymentCallback({ params: req.query, res, isIpn: false });
   } catch (error) {
     throwHttp(500, "Server error", ERROR_CODES.INTERNAL);
+  }
+});
+
+const handleMoMoIpn = asyncHandler(async (req, res) => {
+  try {
+    return await processMoMoPaymentCallback({ params: req.body, res, isIpn: true });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error" });
   }
 });
 const totalPriceOrder = asyncHandler(async (req, res) => {
@@ -700,6 +894,8 @@ module.exports = {
   handleVnPayReturn,
   handleMoMoPay,
   hanldMoMoPay: handleMoMoPay,
+  handleMoMoReturn,
+  handleMoMoIpn,
   totalPriceOrder,
   mostPurchasedProduct,
   topUsersByOrders,

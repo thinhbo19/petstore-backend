@@ -1,5 +1,5 @@
 const moment = require("moment");
-const querystring = require("qs");
+const qs = require("qs");
 const crypto = require("crypto");
 
 function sortObject(obj) {
@@ -55,19 +55,21 @@ function buildVnPayPaymentUrl({ amount, bankCode, locale, ipAddr, returnUrl }) {
     vnp_CreateDate: createDate,
   };
 
+  console.log(params);
+
   if (bankCode) {
     params.vnp_BankCode = bankCode;
   }
 
   const sortedParams = sortObject(params);
-  const signData = querystring.stringify(sortedParams, { encode: false });
+  const signData = qs.stringify(sortedParams, { encode: false });
   const hmac = crypto.createHmac("sha512", secretKey);
   const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
   sortedParams.vnp_SecureHash = signed;
 
   return {
     txnRef,
-    paymentUrl: `${vnpUrl}?${querystring.stringify(sortedParams, { encode: false })}`,
+    paymentUrl: `${vnpUrl}?${qs.stringify(sortedParams, { encode: false })}`,
   };
 }
 
@@ -78,7 +80,7 @@ function verifyVnPayReturnQuery(rawQuery) {
   delete query.vnp_SecureHashType;
 
   const sortedParams = sortObject(query);
-  const signData = querystring.stringify(sortedParams, { encode: false });
+  const signData = qs.stringify(sortedParams, { encode: false });
   const hmac = crypto.createHmac("sha512", process.env.VNP_HASHSECRET);
   const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
@@ -141,6 +143,55 @@ async function succeedPaymentSessionAndBuildRedirect({
   return session.redirectTo;
 }
 
+/** Raw string for MoMo /v2/gateway/api/create (captureWallet). */
+function buildMoMoCreateRawSignature({
+  accessKey,
+  amount,
+  extraData,
+  ipnUrl,
+  orderId,
+  orderInfo,
+  partnerCode,
+  redirectUrl,
+  requestId,
+}) {
+  return `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=captureWallet`;
+}
+
+function signMoMoCreateRequest(fields, secretKey) {
+  const raw = buildMoMoCreateRawSignature(fields);
+  return crypto.createHmac("sha256", secretKey).update(raw).digest("hex");
+}
+
+/** Raw string for MoMo redirect / IPN callback signature verification. */
+function buildMoMoCallbackRawSignature(params) {
+  const accessKey = params.accessKey;
+  const amount = params.amount;
+  const extraData = params.extraData ?? "";
+  const message = params.message ?? "";
+  const orderId = params.orderId;
+  const orderInfo = params.orderInfo ?? "";
+  const orderType = params.orderType ?? "";
+  const partnerCode = params.partnerCode;
+  const payType = params.payType ?? "";
+  const requestId = params.requestId;
+  const responseTime = params.responseTime;
+  const resultCode = params.resultCode;
+  const transId = params.transId ?? "";
+  return `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&message=${message}&orderId=${orderId}&orderInfo=${orderInfo}&orderType=${orderType}&partnerCode=${partnerCode}&payType=${payType}&requestId=${requestId}&responseTime=${responseTime}&resultCode=${resultCode}&transId=${transId}`;
+}
+
+function verifyMomoCallbackSignature(params) {
+  const secretKey = process.env.MOMO_SECRET_KEY;
+  const signature = params.signature;
+  if (!secretKey || !signature || !params.accessKey) {
+    return false;
+  }
+  const raw = buildMoMoCallbackRawSignature(params);
+  const expected = crypto.createHmac("sha256", secretKey).update(raw).digest("hex");
+  return signature === expected;
+}
+
 module.exports = {
   getClientIp,
   buildVnPayPaymentUrl,
@@ -149,4 +200,6 @@ module.exports = {
   getSessionNotFoundRedirectUrl,
   failPaymentSessionAndBuildRedirect,
   succeedPaymentSessionAndBuildRedirect,
+  signMoMoCreateRequest,
+  verifyMomoCallbackSignature,
 };

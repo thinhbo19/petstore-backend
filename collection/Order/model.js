@@ -22,7 +22,7 @@ var OrderSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["PayPal", "VNPay", "PaymentDelivery"],
+      enum: ["PayPal", "VNPay", "MoMo", "PaymentDelivery"],
     },
 
     coupon: {

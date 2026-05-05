@@ -68,6 +68,8 @@ router.patch(
 );
 router.post("/createUrl", [verifyAccessToken], OrderControl.handlePaymentUrl);
 router.get("/vnpay/vnpay_return", OrderControl.handleVnPayReturn);
+router.get("/momo/momo_return", OrderControl.handleMoMoReturn);
+router.post("/momo/momo_ipn", OrderControl.handleMoMoIpn);
 
 router.post("/momopay", [verifyAccessToken], OrderControl.handleMoMoPay);
 
